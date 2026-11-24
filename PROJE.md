@@ -37,12 +37,22 @@ Rapor: Yusuf → veri ve değerlendirme, Ersin → modeller, Kamil → panel ve 
 
 - **Kaynak:** UK Domestic Appliance-Level Electricity (Kelly & Knottenbelt, 2015). Resmi UKERC EDC bağlantısı artık çalışmadığı için NILMTK biçimindeki `ukdale.h5` dosyası [Zenodo 13917372](https://zenodo.org/records/13917372) kaydından indiriliyor (~3.35 GB, MD5 ile doğrulanır).
 - **Yapı:** `/building{n}/elec/meter{m}`; `meter1` evin toplam (ana) sayacı, diğerleri cihaz sayaçları. Cihaz–sayaç eşlemesi her binanın `metadata` özniteliğinde.
-- **Dikkat:** Zenodo dosyası resmi 2017 sürümünden küçük; içerdiği evler ve tarih aralığı `scripts/inspect_ukdale.py` ile doğrulanacak.
+- **Biçim:** dosya pandas 0.15 ile yazılmış; güncel `pandas.HDFStore` açamadığı için okuyucu tabloları doğrudan PyTables ile okur. İndirilen dosya MD5 ile doğrulandı (3.345 GB).
 - Ham veri `data/raw/`, işlenmiş veri `data/processed/` altında durur; ikisi de git'e girmez.
 
-### Seçilen cihazlar (taslak)
+### Evler ve cihazlar (doğrulandı)
 
-`fridge` (buzdolabı), `washing machine` (çamaşır makinesi), `kettle` (su ısıtıcısı), `dish washer` (bulaşık makinesi), `microwave` (mikrodalga). Liste, evlerde hangi cihazların bulunduğu görüldükten sonra kesinleşecek.
+| Ev | Tarih aralığı | Buzdolabı | Çamaşır makinesi | Su ısıtıcısı | Bulaşık makinesi | Mikrodalga |
+|---|---|---|---|---|---|---|
+| 1 | 2012-11-09 → 2015-01-05 (786 gün) | ✅ (fridge freezer) | ✅ (washer dryer) | ✅ | ✅ | ✅ |
+| 2 | 2013-02-17 → 2013-10-10 (234 gün) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 3 | 2013-02-27 → 2013-04-08 (39 gün) | – | – | ✅ | – | – |
+| 4 | 2013-03-09 → 2013-10-01 (205 gün) | – | ⚠️ | ✅ | – | ⚠️ |
+| 5 | 2014-06-29 → 2014-11-13 (137 gün) | ✅ (fridge freezer) | ✅ (washer dryer) | ✅ | ✅ | ✅ |
+
+- Aynı cihazın farklı adları `config.APPLIANCE_ALIASES` ile birleştirilir (`fridge freezer` → buzdolabı, `washer dryer` → çamaşır makinesi).
+- ⚠️ Ev 4'te çamaşır makinesi ve mikrodalga **aynı sayaçta**; hangisinin çektiği ayrılamadığı için ikisi de bu evde kullanılmaz.
+- Sonuç: su ısıtıcısı dışındaki dört cihaz için eğitim fiilen **yalnızca ev 1** ile yapılır (en uzun kayıt). Seçilen 5 cihaz literatürdeki standart UK-DALE kurulumuyla aynı; liste bu hâliyle kalabilir.
 
 ### Ev ayrımı
 
@@ -52,7 +62,7 @@ Rapor: Yusuf → veri ve değerlendirme, Ersin → modeller, Kamil → panel ve 
 | Doğrulama | 5 | Hiperparametre seçimi, erken durdurma |
 | Görülmeyen ev (test) | 2 | Genelleme ölçümü; eğitimde hiç kullanılmaz |
 
-Ayrım ev bazlıdır: aynı evin verisi iki kümede birden bulunmaz, böylece zaman bazlı ayırmadaki sızıntı oluşmaz. Bazı cihazlar 3. ve 4. evde bulunmayabilir; bu durumda o cihaz yalnızca mevcut evlerle eğitilir.
+Ayrım ev bazlıdır: aynı evin verisi iki kümede birden bulunmaz, böylece zaman bazlı ayırmadaki sızıntı oluşmaz. Ev 3 ve 4 yalnızca su ısıtıcısı için eğitime katkı verir.
 
 ## 5. Ortak sözleşmeler
 
@@ -208,14 +218,14 @@ streamlit run panel/app.py
 |---|---|
 | Depo, ortak sözleşmeler | ✅ `main` |
 | Değerlendirme, rapor, panel (PR #2) | ✅ `main`'e birleşti |
-| UK-DALE indirme betiği (PR #1) | 🔄 İncelemede; indirme sürüyor |
-| Veri hazırlama (PR #3) | 🔄 Sahte veriyle test edildi; gerçek veriyle denenecek |
+| UK-DALE indirme | ✅ İndirildi, MD5 doğrulandı |
+| Veri hazırlama | ✅ Gerçek veriyle çalışıyor; tüm veri işleniyor |
 | Modeller | ⏳ Ersin başlayacak |
 
 ## 16. Açık kararlar
 
-- [ ] Cihaz listesi (UK-DALE ev analizinden sonra)
-- [ ] Ev ayrımının cihaz bazında uyarlanması (eksik cihazlar için)
+- [x] Cihaz listesi — 5 cihaz tüm gerekli evlerde var (Bölüm 4)
+- [x] Ev ayrımı — eğitim 1 (+3, 4 su ısıtıcısı için), doğrulama 5, test 2
 - [x] ~~TL/kWh birim fiyatı~~ → 3.24 TL (Nisan 2026 mesken tarifesi, Kamil)
 - [ ] Cihaz bazlı açık/kapalı eşiklerinin doğrulanması
 - [ ] Tahmin çıktı dosyalarının biçimi (panel için)
@@ -224,7 +234,7 @@ streamlit run panel/app.py
 
 | Risk | Önlem |
 |---|---|
-| Zenodo dosyası eksik ya da eski sürüm | Ev ve tarih analizi; gerekirse resmi kaynağı (CEDA) ya da başka bir aynayı bulmak |
+| Eğitim fiilen tek evden (ev 1) | Görülmeyen ev sonuçlarını bu sınırlamayla yorumlamak; gerekirse ev 5'i eğitime alıp doğrulamayı ev 1'in son aylarından yapmak |
 | Bazı cihazlar az evde var | Cihaz listesini veriye göre seçmek; görülmeyen ev testini cihaz bazında uyarlamak |
 | Hesaplama gücü yetersiz | Daha küçük pencere/model, alt örneklenmiş veri, Colab/Kaggle GPU |
 | Zaman darlığı | Bölüm 14'teki öncelik sırası |

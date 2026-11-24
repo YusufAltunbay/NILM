@@ -1,6 +1,12 @@
 # Ekipçe kesinleştirilecek cihaz listesi (UK-DALE etiket adları)
 APPLIANCES = ["fridge", "washing machine", "kettle", "dish washer", "microwave"]
 
+# UK-DALE evlerde aynı cihazı farklı adlarla kaydediyor; bunlar tek cihaz sayılır.
+APPLIANCE_ALIASES = {
+    "fridge": ["fridge", "fridge freezer"],
+    "washing machine": ["washing machine", "washer dryer"],
+}
+
 SAMPLE_PERIOD_S = 6          # UK-DALE yeniden örnekleme aralığı
 TL_PER_KWH = 3.24            # Nisan 2026 mesken tarifesi: 100 kWh = 323,8 TL (ortalama)
 TRAIN_HOUSES = [1, 3, 4]

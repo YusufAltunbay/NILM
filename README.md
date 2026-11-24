@@ -1,12 +1,24 @@
 # NILM Projesi
 
-Ekip: Yusuf (veri & donanım), Ersin (modeller), Kamil (değerlendirme & web paneli).
+Ekip: Yusuf (veri), Ersin (modeller), Kamil (değerlendirme & web paneli).
+
+Ayrıntılı proje belgesi: [PROJE.md](PROJE.md)
 
 ## Ortak kararlar
 - **Veri biçimi** (`nilm/data/schema.py`): her kayıt `timestamp`, `aggregate_w`, `appliance_w` (+ `house`, `appliance`).
 - **Model arayüzü** (`nilm/models/base.py`): her model `fit(train)` ve `predict(aggregate)` sağlar.
 - **Sonuç tablosu** (`results/results.csv`): `model, dataset, appliance, mae, sae, f1, tl_error, predict_ms` — `nilm/eval/results.py` ile yazılır.
 - **İzlenecek cihazlar**: `nilm/config.py` içindeki `APPLIANCES` (ekipçe kesinleştirilecek).
+
+## Kapsam
+Yalnızca açık veri seti (UK-DALE) kullanılır; kendi evimizde ölçüm yapılmaz. "Hiç görülmeyen ev" testi için UK-DALE ev 2 ayrılır.
+
+## Veri
+```
+python -m scripts.download_ukdale   # data/raw/ukdale.h5
+python -m scripts.inspect_ukdale    # evler, cihazlar, tarih aralıkları
+python -m scripts.prepare_ukdale    # data/processed/{cihaz}.h5 + örnek CSV
+```
 
 ## Dallar
 `main` korumalı; herkes `yusuf/...`, `ersin/...`, `kamil/...` dallarında çalışır, PR ile birleştirir.
@@ -27,4 +39,3 @@ streamlit run panel/app.py                  # web paneli
 ```
 - Yeni model eklemek için `scripts/run_eval.py` içindeki `MODELS` sözlüğüne sınıfı eklemek yeterli.
 - F1 için cihaz bazlı AÇIK eşikleri `nilm/config.py` → `ON_THRESHOLD_W`.
-- Not: `config.VAL_HOUSES=[5]` şu an `TRAIN_HOUSES` içinde; değerlendirme yalnızca eğitimde olmayan / `UNSEEN_HOUSES` evleri test eder.

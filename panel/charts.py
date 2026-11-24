@@ -23,7 +23,7 @@ def ribbon(bill: pd.DataFrame):
         for a, v in bill[col].items():
             share = v / total
             rows.append(dict(Satir=name, Cihaz=theme.tr(a), TL=round(v, 2), Pay=round(share * 100, 1),
-                             start=start, end=start + v, label=theme.tr(a) if share >= 0.13 else ""))
+                             start=start, end=start + v, label=theme.tr(a) if share >= 0.13 else (theme.short(a) if share >= 0.06 else "")))
             start += v
     d = pd.DataFrame(rows)
     names, colors = theme.palette(list(bill.index))
@@ -34,7 +34,7 @@ def ribbon(bill: pd.DataFrame):
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Satir:N", title="Satır"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
                  alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
-    text = alt.Chart(d).mark_text(align="left", dx=9, color="white", fontWeight=600, fontSize=13, font=FONT).encode(
+    text = alt.Chart(d).mark_text(align="left", dx=9, color="white", fontWeight=600, fontSize=13, font=FONT).encode(tooltip=alt.value(None), 
         x="start:Q", y=row_enc, text="label:N")
     return _style((bars + text).properties(height=190))
 
@@ -113,7 +113,7 @@ def bars(bill: pd.DataFrame):
         stroke=alt.Stroke("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         fillOpacity=alt.FillOpacity("Seri:N", scale=alt.Scale(domain=["Gerçek", "Tahmin"], range=[1.0, 0.28]), legend=None),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("Seri:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)")])
-    txt = base.mark_text(dy=-8, fontSize=12, font=FONT, color=theme.INK, fontWeight=500).encode(text=alt.Text("TL:Q", format=",.1f"))
+    txt = base.mark_text(dy=-8, fontSize=12, font=FONT, color=theme.INK, fontWeight=500).encode(tooltip=alt.value(None), text=alt.Text("TL:Q", format=",.1f"))
     return _style((bar + txt).properties(height=340))
 
 
@@ -137,7 +137,7 @@ def stacked(bill: pd.DataFrame):
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
                  alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
-    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=13, font=FONT).encode(x=x, y="mid:Q", text="label:N")
+    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=13, font=FONT).encode(tooltip=alt.value(None), x=x, y="mid:Q", text="label:N")
     return _style((bar + txt).properties(height=380))
 
 
@@ -166,7 +166,7 @@ def rank_bars(ozet: pd.DataFrame, metric: str, title: str, lower_better: bool):
     bar = base.mark_bar(cornerRadiusEnd=4, size=26).encode(
         color=alt.Color("Model:N", scale=alt.Scale(domain=all_models, range=[palette[m] for m in all_models]), legend=None),
         tooltip=[alt.Tooltip("Model:N"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
-    txt = base.mark_text(align="left", dx=8, fontSize=13, font=FONT, color=theme.INK, fontWeight=600).encode(text=alt.Text(f"{metric}:Q", format=".3f"))
+    txt = base.mark_text(align="left", dx=8, fontSize=13, font=FONT, color=theme.INK, fontWeight=600).encode(tooltip=alt.value(None), text=alt.Text(f"{metric}:Q", format=".3f"))
     return _style((bar + txt).properties(height=max(110, 56 * len(models))))
 
 
@@ -192,7 +192,7 @@ def heatmap(r: pd.DataFrame, metric: str, title: str, lower_better: bool):
     rect = alt.Chart(d).mark_rect(stroke="#FFFFFF", strokeWidth=3, cornerRadius=4).encode(
         x=x, y=y, color=alt.Color("score:Q", scale=scale, legend=None),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
-    txt = alt.Chart(d).mark_text(fontSize=13, fontWeight=600, font=FONT).encode(
+    txt = alt.Chart(d).mark_text(fontSize=13, fontWeight=600, font=FONT).encode(tooltip=alt.value(None), 
         x=x, y=y, text="label:N",
         color=alt.condition(alt.datum.score > 0.5, alt.value("#FFFFFF"), alt.value(theme.INK)))
     layers = [rect, txt]
@@ -311,7 +311,7 @@ def stacked_multi(bills: dict):
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N", title="Sütun"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
                  alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
-    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=12, font=FONT).encode(x=x, y="mid:Q", text="label:N")
+    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=12, font=FONT).encode(tooltip=alt.value(None), x=x, y="mid:Q", text="label:N")
     return _style((bar + txt).properties(height=390))
 
 
@@ -326,6 +326,6 @@ def scorecard(d: pd.DataFrame):
         y=alt.Y("Skor:Q", title="En iyi modele göre başarı (%)", scale=alt.Scale(domain=[0, 105]), axis=alt.Axis(tickCount=5, values=[0, 25, 50, 75, 100])),
         color=alt.Color("Model:N", scale=alt.Scale(domain=models, range=[theme.mcolor(m) for m in models]), legend=None),
         tooltip=[alt.Tooltip("Ölçüt:N"), alt.Tooltip("Model:N"), alt.Tooltip("Skor:Q", format=".0f", title="Başarı (%)"), alt.Tooltip("Değer:N", title="Değer")])
-    txt = alt.Chart(d).mark_text(dy=-8, fontSize=11, font=FONT, color=theme.INK, fontWeight=600).encode(
+    txt = alt.Chart(d).mark_text(dy=-8, fontSize=11, font=FONT, color=theme.INK, fontWeight=600).encode(tooltip=alt.value(None), 
         x=alt.X("Ölçüt:N", sort=order), xOffset=alt.XOffset("Model:N", sort=models), y="Skor:Q", text=alt.Text("Skor:Q", format=".0f"))
     return _style((ch + txt).properties(height=330))

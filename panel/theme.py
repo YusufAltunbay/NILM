@@ -42,6 +42,14 @@ def tr(appliance: str) -> str:
     return APPLIANCES.get(appliance, (appliance.capitalize(), ""))[0]
 
 
+_SHORT = {"fridge": "Buzdolabı", "washing machine": "Çamaşır", "kettle": "Su ısıt.", "dish washer": "Bulaşık", "microwave": "Mikrodalga"}
+
+
+def short(appliance: str) -> str:
+    """Dar dilimlere sığan kısa ad."""
+    return _SHORT.get(appliance, tr(appliance)[:8])
+
+
 def color(appliance: str) -> str:
     if appliance in APPLIANCES:
         return APPLIANCES[appliance][1]

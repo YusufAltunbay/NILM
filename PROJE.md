@@ -196,7 +196,7 @@ streamlit run panel/app.py
 
 ## 13. Git iş akışı
 
-- `main` yalnızca PR ile güncellenir; her PR'a en az bir ekip arkadaşı bakar.
+- `main` yalnızca PR ile güncellenir. PR'da resmi inceleme (reviewer) zorunlu değildir; değişiklik ekibe haber verilerek ve testler geçerek birleştirilir.
 - Dal adları: `yusuf/...`, `ersin/...`, `kamil/...`.
 - Büyük dosyalar (veri, `*.pt` model ağırlıkları) git'e girmez.
 - Ortak dosyalar (`nilm/config.py`, sözleşmeler) değişince ekibe haber verilir.

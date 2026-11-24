@@ -54,6 +54,21 @@ Rapor: Yusuf → veri ve değerlendirme, Ersin → modeller, Kamil → panel ve 
 - ⚠️ Ev 4'te çamaşır makinesi ve mikrodalga **aynı sayaçta**; hangisinin çektiği ayrılamadığı için ikisi de bu evde kullanılmaz.
 - Sonuç: su ısıtıcısı dışındaki dört cihaz için eğitim fiilen **yalnızca ev 1** ile yapılır (en uzun kayıt). Seçilen 5 cihaz literatürdeki standart UK-DALE kurulumuyla aynı; liste bu hâliyle kalabilir.
 
+### Cihaz seçimi gerekçesi (`scripts/cihaz_siralama.py`)
+
+UK-DALE'de 62 cihaz tipi var; hepsinin evin toplam enerjisindeki payı hesaplandı (ev 1, 2, 5; seyrek kayıt alan sayaçlarda kayıt olmayan anlar "kapalı" sayıldı). Eğitim, doğrulama ve test evlerinin **üçünde de** ölçülen ve sayacı başka cihazla paylaşılmayan cihazlar:
+
+| Cihaz | Ev 1 | Ev 2 | Ev 5 | Not |
+|---|---|---|---|---|
+| Buzdolabı (+ buzdolabı-dondurucu) | 11.2 | 14.9 | 5.7 | |
+| Bulaşık makinesi | 4.3 | 14.2 | 2.4 | |
+| Çamaşır makinesi (+ çamaşır-kurutma) | 7.3 | 3.8 | 5.8 | |
+| Su ısıtıcısı | 3.6 | 9.4 | 1.8 | Ev 1'de sayaç sandviç makinesiyle ortak |
+| Bilgisayar monitörü | 1.3 | 6.7 | 1.1 | Düşük güç, bazı evlerde seyrek kayıt |
+| Mikrodalga | 2.1 | 2.1 | 0.1 | Ev 5 ham sayaçta %6.6 görünür; sabit 50 W ofset (Bölüm 7) |
+
+Değerler cihaz enerjisinin evin toplam enerjisine oranıdır (%). Seçilen 5 cihaz ev 1'de %28, ev 2'de %44, ev 5'te %16 pay kapsar; kalan "diğer"dir ve panelde ayrı bir kalem olarak gösterilmelidir. Aydınlatma yalnızca ev 1'de ayrı ölçülür (15 sayaç, tüm kayıtta %13.8, yaz aylarında %5.4); ev 4'ün "lamba" sayacı televizyon ve DVD ile ortaktır, bu yüzden aydınlatma görülmeyen evde test edilemez. Evlerin ikisinde birden bulunan diğer cihazlar (televizyon, masaüstü bilgisayar, dizüstü) test evi eksik olduğu için aynı ayrımla değerlendirilemez.
+
 ### Ev ayrımı
 
 | Küme | Evler | Amaç |

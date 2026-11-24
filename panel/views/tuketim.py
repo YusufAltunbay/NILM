@@ -11,10 +11,7 @@ models, house, price = data.sidebar(pred, demo)
 model = data.one_model(models, "model_tuketim")
 bill = data.bill_table(pred, model, house, price)
 
-theme.page_header("Faturanın cihazlara dağılımı",
-                  "Tek bir ana sayaçtan okunan toplam güç, yapay zeka ile cihazlara bölünür. "
-                  "Aşağıda tahmin edilen fatura, gerçek faturayla karşılaştırılıyor.",
-                  chips=[f"Ev {house}", f"Model: {model}", f"{price:.2f} TL/kWh"], demo=demo)
+theme.page_header("Fatura dağılımı", chips=[f"Ev {house}", model, f"{price:.2f} TL/kWh"])
 if bill.empty:
     st.error("Bu model ve ev için veri yok. Kenar çubuğundan başka bir seçim yapın.")
     st.stop()
@@ -23,10 +20,10 @@ theme.bill_strip(bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum(),
                  bill["Gerçek (kWh)"].sum(), bill["Tahmin (kWh)"].sum())
 theme.callout(theme.summary_sentence(bill))
 
-theme.section("Faturanın dağılımı", "Aynı veriyi dört farklı biçimde görebilirsiniz.")
+theme.section("Dağılım")
 blocks.bill_view(bill, key="view_tuketim", default="Şerit")
 
-theme.section("Fatura kalemleri", "Mutlak hata, her cihazın faturasındaki sapmadır. Eksi ve artı hatalar birbirini götürmez.")
+theme.section("Fatura kalemleri")
 theme.ledger(bill)
 out = bill.rename_axis("Cihaz").reset_index()
 out["Cihaz"] = out["Cihaz"].map(theme.tr)

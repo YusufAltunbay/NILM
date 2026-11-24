@@ -55,9 +55,8 @@ def palette(appliances):
 
 _CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap');
-.stApp, [data-testid="stSidebar"] {{ font-family: 'Figtree', 'Segoe UI', system-ui, sans-serif; }}
-.stApp h1, .stApp h2, .stApp h3, .nilm-title, .num {{ font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; }}
+.stApp, [data-testid="stSidebar"] {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; }}
+.stApp h1, .stApp h2, .stApp h3, .nilm-title, .num {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif; }}
 .block-container {{ padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1200px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 .stDeployButton, [data-testid="stAppDeployButton"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu, footer {{ display: none !important; }}
@@ -68,7 +67,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
          font-size: .82rem; font-weight: 500; margin: 0 6px 6px 0; }}
 .chip.demo {{ background: #FFF1D6; color: #8A5200; }}
 
-.sec {{ font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; font-size: 1.22rem; font-weight: 700; color: {INK};
+.sec {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-size: 1.22rem; font-weight: 700; color: {INK};
         margin: 1.9rem 0 .15rem 0; letter-spacing: -0.01em; }}
 .sec-note {{ color: {MUTED}; font-size: .92rem; margin: 0 0 .6rem 0; max-width: 70ch; }}
 
@@ -77,7 +76,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .strip .cell:last-child {{ border-right: none; }}
 .strip .lab {{ font-size: .88rem; color: {MUTED}; margin-bottom: 2px; }}
 .strip .num {{ font-size: 2.5rem; font-weight: 700; line-height: 1.1; color: {INK}; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }}
-.strip .num small {{ font-family: 'Figtree', 'Segoe UI', sans-serif; font-size: 1rem; font-weight: 500; color: {MUTED}; margin-left: 6px; letter-spacing: 0; }}
+.strip .num small {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; font-size: 1rem; font-weight: 500; color: {MUTED}; margin-left: 6px; letter-spacing: 0; }}
 .strip .sub {{ font-size: .88rem; color: {MUTED}; margin-top: 2px; }}
 .over {{ color: #B45309 !important; }} .under {{ color: #1D4ED8 !important; }} .ok {{ color: #0F766E !important; }}
 
@@ -94,7 +93,7 @@ table.ledger {{ width: 100%; border-collapse: collapse; background: #fff; border
 .ledger .errbar {{ display: inline-block; height: 7px; border-radius: 4px; background: #CBD5E3; margin-right: 10px; vertical-align: middle; }}
 
 [data-testid="stSidebar"] {{ border-right: none; }}
-[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ font-family: 'Bricolage Grotesque', sans-serif; font-weight: 600; font-size: 1.05rem; }}
+[data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-weight: 600; font-size: 1.05rem; }}
 .side-foot {{ color: #8FA3BF; font-size: .8rem; line-height: 1.5; margin-top: 2rem; padding-top: .9rem; border-top: 1px solid #243752; }}
 .demo-note {{ background: #2A2411; color: #FFD58A; font-size: .84rem; line-height: 1.45; padding: 9px 12px; border-radius: 6px; margin: 0 0 1rem 0; }}
 
@@ -119,8 +118,8 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .side-label {{ color: #8FA3BF; font-size: .82rem; margin: 1.05rem 0 .15rem 0; font-weight: 500; }}
 .sidecard {{ background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 14px 15px 13px 15px; margin: 1.1rem 0 .4rem 0; }}
 .sidecard .t {{ color: #8FA3BF; font-size: .8rem; }}
-.sidecard .v {{ font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #fff; font-size: 1.75rem; font-weight: 700; line-height: 1.15; }}
-.sidecard .v small {{ font-size: .85rem; font-weight: 500; color: #8FA3BF; margin-left: 4px; font-family: 'Figtree', 'Segoe UI', sans-serif; }}
+.sidecard .v {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; color: #fff; font-size: 1.75rem; font-weight: 700; line-height: 1.15; }}
+.sidecard .v small {{ font-size: .85rem; font-weight: 500; color: #8FA3BF; margin-left: 4px; font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; }}
 .sidecard .s {{ color: #B9C7DA; font-size: .8rem; margin-top: 1px; }}
 .sidecard .bar {{ display: flex; height: 9px; border-radius: 6px; overflow: hidden; margin-top: 11px; gap: 2px; }}
 .sidecard .bar i {{ display: block; height: 100%; }}
@@ -131,6 +130,16 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 [data-testid="stExpandSidebarButton"] svg, [data-testid="stSidebarCollapsedControl"] svg {{ color: #fff !important; fill: #fff !important; }}
 [data-testid="stSidebarCollapseButton"] button {{ color: #B9C7DA !important; }}
 
+
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button {{ border-radius: 999px !important; background: rgba(255,255,255,.06) !important;
+        border: 1px solid rgba(255,255,255,.16) !important; color: #D5E0EE !important; padding: 4px 12px !important; transition: all .15s; }}
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button:hover {{ background: rgba(255,255,255,.12) !important; }}
+[data-testid="stSidebar"] [data-testid="stButtonGroup"] button[aria-checked="true"], [data-testid="stSidebar"] [data-testid="stButtonGroup"] button[kind="pillsActive"] {{
+        background: rgba(18,181,166,.28) !important; border-color: #12B5A6 !important; color: #fff !important; font-weight: 600; }}
+.sideuser {{ display: flex; align-items: center; gap: 11px; margin: 1.2rem 0 .5rem 0; color: #E6ECF5; font-size: .92rem; line-height: 1.25; }}
+.sideuser small {{ color: #8FA3BF; }}
+.sideuser .av {{ width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #12B5A6, #2F80ED); color: #fff; display: inline-flex;
+        align-items: center; justify-content: center; font-weight: 700; flex: none; }}
 /* ---- kartlar ---- */
 .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: .7rem 0 .4rem 0; }}
 .card {{ background: #fff; border: 1px solid {LINE}; border-top: 4px solid var(--c); border-radius: 14px; padding: 15px 18px 14px 18px;
@@ -138,10 +147,10 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .card.first {{ background: linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, #fff) 0%, #fff 70%); border-color: color-mix(in srgb, var(--c) 40%, {LINE}); }}
 .card .nm {{ display: flex; align-items: center; gap: 9px; font-weight: 600; color: {INK}; font-size: 1.02rem; margin-bottom: 8px; }}
 .card .rk {{ width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--c); color: #fff; display: inline-flex; align-items: center; justify-content: center;
-        font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: .95rem; }}
+        font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-weight: 700; font-size: .95rem; }}
 .card .tag {{ margin-left: auto; background: #E0F7F4; color: #0B6B61; border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600; }}
-.card .big {{ font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; font-size: 1.85rem; font-weight: 700; color: {INK}; line-height: 1.1; letter-spacing: -0.02em; }}
-.card .big small {{ font-size: .9rem; color: {MUTED}; font-weight: 500; margin-left: 5px; font-family: 'Figtree', 'Segoe UI', sans-serif; letter-spacing: 0; }}
+.card .big {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-size: 1.85rem; font-weight: 700; color: {INK}; line-height: 1.1; letter-spacing: -0.02em; }}
+.card .big small {{ font-size: .9rem; color: {MUTED}; font-weight: 500; margin-left: 5px; font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; letter-spacing: 0; }}
 .card .big-sub {{ color: {MUTED}; font-size: .84rem; margin-bottom: 8px; }}
 .card .kv {{ display: flex; justify-content: space-between; align-items: center; font-size: .88rem; color: {MUTED}; padding: 3px 0; }}
 .card .kv b {{ color: {INK}; font-weight: 600; font-variant-numeric: tabular-nums; }}
@@ -163,10 +172,8 @@ def inject():
 
 def page_header(title: str, sub: str = "", chips=(), demo: bool = False):
     chip_html = "".join(f'<span class="chip">{html.escape(c)}</span>' for c in chips)
-    if demo:
-        chip_html += '<span class="chip demo">Demo verisi</span>'
     st.markdown(f'<h1 class="nilm-title">{html.escape(title)}</h1>'
-                f'<p class="nilm-sub">{html.escape(sub)}</p><div>{chip_html}</div>',
+                f'{f"<p class=nilm-sub>{html.escape(sub)}</p>" if sub else ""}<div>{chip_html}</div>',
                 unsafe_allow_html=True)
 
 
@@ -264,6 +271,18 @@ def side_card(title: str, value: str, unit: str, sub: str, shares: list):
     st.markdown(f'<div class="sidecard"><div class="t">{html.escape(title)}</div>'
                 f'<div class="v">{html.escape(value)}<small>{html.escape(unit)}</small></div>'
                 f'<div class="s">{html.escape(sub)}</div><div class="bar">{bar}</div></div>', unsafe_allow_html=True)
+
+
+def model_pill(m: str) -> str:
+    dots = ["\U0001F534", "\U0001F7E2", "\U0001F535", "\U0001F7E1", "\U0001F7E3", "\u26AB"]
+    i = _MODELS.index(m) if m in _MODELS else 0
+    return f"{dots[i % len(dots)]} {m}"
+
+
+def side_user(name: str, house):
+    sub = f"Ev {house}" if house is not None else "Tüm evler"
+    st.markdown(f'<div class="sideuser"><span class="av">{html.escape(name[:1].upper())}</span>'
+                f'<span><b>{html.escape(name)}</b><br><small>{html.escape(sub)}</small></span></div>', unsafe_allow_html=True)
 
 
 def side_pills(items):

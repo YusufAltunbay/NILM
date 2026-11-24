@@ -18,7 +18,6 @@ _VIEWS = {
 def bill_view(bill, key: str, default: str = "Şerit"):
     """Fatura için Şerit / Dikey şerit / Halka / Çubuk seçicisi ve seçilen grafik."""
     view = st.segmented_control("Görünüm", list(_VIEWS), default=default, key=key, label_visibility="collapsed") or default
-    st.caption(_VIEWS[view])
     theme.legend(list(bill.index))
     chart = {"Şerit": charts.ribbon, "Dikey şerit": charts.stacked, "Halka": charts.donut, "Çubuk": charts.bars}[view]
     st.altair_chart(chart(bill), width="stretch")
@@ -98,11 +97,9 @@ def compare_view(wfull: pd.DataFrame, dev: str, models, start, end, price: float
     theme.model_legend(models, real_color=theme.color(dev), real_label=f"Gerçek: {theme.tr(dev)}")
     st.altair_chart(charts.series_multi(view, dev, models, show_agg, bands, height), width="stretch")
     if show_err:
-        theme.section("Hata", "Tahmin eksi gerçek. Kehribar: fazla tahmin, mavi: eksik tahmin.")
+        theme.section("Hata")
         for i, m in enumerate(models):
             st.caption(m)
             st.altair_chart(charts.residual(view.assign(Tahmin=view[f"m{i}"])), width="stretch")
     window_cards(g, dev, models, price)
-    st.caption(f"{len(g):,} örnek" + (f", grafikte her {step}. örnek." if step > 1 else ".")
-               + " Fare tekerleğiyle yakınlaştırabilir, sürükleyerek kaydırabilirsiniz.")
     return g

@@ -7,11 +7,15 @@ sys.path.insert(0, str(HERE.parent))
 
 import streamlit as st
 
-from panel import theme
+from panel import auth, theme
 
 st.set_page_config(page_title="NILM paneli", page_icon=":material/bolt:", layout="wide")
 theme.inject()
 st.logo(str(HERE / "assets" / "logo.svg"), size="large")
+
+if auth.current() is None:
+    st.navigation([st.Page(auth.login_page, title="Giriş", url_path="giris")], position="hidden").run()
+    st.stop()
 
 pages = [
     st.Page("views/tuketim.py", title="Fatura dağılımı", icon=":material/receipt_long:", default=True),

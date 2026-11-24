@@ -13,9 +13,7 @@ from panel import blocks, charts, data, theme
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
 
-theme.page_header("Model karşılaştırma",
-                  "Seçili tüm modeller aynı evde, aynı veriyle yarışıyor. Kim önde, hangi cihazda güçlü, faturayı kim daha iyi böldü?",
-                  chips=[f"Ev {house}", f"{len(models)} model"], demo=demo)
+theme.page_header("Model karşılaştırma", chips=[f"Ev {house}", f"{len(models)} model"])
 if len(models) < 2:
     st.info("Karşılaştırma için sol panelden en az iki model seçin.")
     st.stop()
@@ -37,7 +35,7 @@ ozet["sira"] = ranks.mean(axis=1)
 order = list(ozet.sort_values(["sira", "mae"]).index)
 
 # ---- 1. podyum
-theme.section("Genel sıralama", "Dört ölçütte (MAE, SAE, fatura hatası, F1) ortalama sıraya göre. Yeşil nokta, o ölçütte en iyi olan modeldir.")
+theme.section("Genel sıralama")
 best_in = {m: (ozet[m].min() if LOWER[m] else ozet[m].max()) for m in METRICS}
 cards = []
 for n, name in enumerate(order, 1):
@@ -48,7 +46,7 @@ for n, name in enumerate(order, 1):
 theme.cards(cards)
 
 # ---- 2. karne
-theme.section("Ölçüt karnesi", "Her ölçütte en iyi model 100 kabul edilir; diğerleri ona göre. Yüksek çubuk daha iyi demektir (hata ölçütlerinde de).")
+theme.section("Ölçüt karnesi")
 rows = []
 for m in METRICS:
     best = best_in[m]
@@ -59,18 +57,23 @@ for m in METRICS:
 st.altair_chart(charts.scorecard(pd.DataFrame(rows)), width="stretch")
 
 # ---- 3. cihaz bazında
-theme.section("Cihaz cihaz karşılaştırma", "Aynı ölçüt, her cihaz için tüm modeller yan yana.")
-metric = st.segmented_control("Ölçüt", list(report.METRICS), default="mae", format_func=report.METRICS.get, key="km_metric") or "mae"
-t1, t2 = st.tabs(["Çubuk grafik", "Isı haritası"])
-with t1:
-    theme.model_legend(order)
-    st.altair_chart(charts.model_bars(r, metric, report.METRICS[metric]), width="stretch")
-with t2:
-    st.caption("Koyu kutu, o cihazda daha iyi olan modeldir. Çerçeveli kutu en iyisini gösterir.")
-    st.altair_chart(charts.heatmap(r, metric, report.METRICS[metric], metric != "f1"), width="stretch")
+theme.section("Cihaz cihaz")
+
+
+@st.fragment
+def per_device():
+    metric = st.segmented_control("Ölçüt", list(report.METRICS), default="mae", format_func=report.METRICS.get, key="km_metric") or "mae"
+    t1, t2 = st.tabs(["Çubuk grafik", "Isı haritası"])
+    with t1:
+        st.altair_chart(charts.model_bars(r, metric, report.METRICS[metric]), width="stretch")
+    with t2:
+        st.altair_chart(charts.heatmap(r, metric, report.METRICS[metric], metric != "f1"), width="stretch")
+
+
+per_device()
 
 # ---- 4. fatura yan yana
-theme.section("Fatura yan yana", f"Ev {house} için gerçek fatura ve her modelin tahmin ettiği fatura. Dilimler cihazlar, yükseklik tutardır.")
+theme.section("Fatura yan yana")
 bills = {"Gerçek": data.bill_table(pred, order[0], house, price)}
 for name in order:
     bills[name] = data.bill_table(pred, name, house, price)
@@ -82,16 +85,23 @@ if not bills["Gerçek"].empty:
         f"{n}: {bills[n]['Tahmin (TL)'].sum():,.2f} TL ({(bills[n]['Tahmin (TL)'].sum() - real_tl) / real_tl * 100:+.1f}%)." for n in order))
 
 # ---- 5. aynı ana bakış
-theme.section("Aynı ana bakış", "Seçtiğiniz cihazın en hareketli 6 saatinde tüm modeller gerçek güçle yan yana.")
-devs = [a for a in theme.APPLIANCES if a in set(pred[pred["house"] == house]["appliance"])]
-dev = st.pills("Cihaz", devs, default=devs[0], format_func=theme.demoji, key="km_dev", label_visibility="collapsed") or devs[0]
-wf = data.wide(pred, house, dev, order)
-win = pd.Timedelta(hours=6)
-if wf["timestamp"].max() - wf["timestamp"].min() > win:
-    start = data.busiest_start(wf["timestamp"], wf["Gerçek"], win)
-else:
-    start = wf["timestamp"].min().to_pydatetime()
-blocks.compare_view(wf, dev, order, start, start + win.to_pytimedelta(), price, height=340)
+theme.section("En hareketli 6 saat")
+devs = [a for a in theme.APPLIANCES if a in set(pred.loc[pred["house"] == house, "appliance"].unique())]
+
+
+@st.fragment
+def live():
+    dev = st.pills("Cihaz", devs, default=devs[0], format_func=theme.demoji, key="km_dev", label_visibility="collapsed") or devs[0]
+    wf = data.wide(pred, house, dev, order)
+    win = pd.Timedelta(hours=6)
+    if wf["timestamp"].max() - wf["timestamp"].min() > win:
+        start = data.busiest(house, dev, order, win)
+    else:
+        start = wf["timestamp"].min().to_pydatetime()
+    blocks.compare_view(wf, dev, order, start, start + win.to_pytimedelta(), price, height=340)
+
+
+live()
 
 # ---- 6. tablo
 theme.section("Tüm ölçütler")

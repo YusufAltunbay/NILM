@@ -120,7 +120,8 @@ ukdale.h5 ──► ukdale.load() ──► prep.clean() ──► data/processe
    - **Bekleme eşiği (`config.STANDBY_W`):** mikrodalgada 100 W altı 0 sayılır. Ev 5 mikrodalga sayacı Temmuz 2014'ten itibaren zamanın %90'ında sabit 50 W gösteriyor (gerçek kullanım günde ~0.4 kez, ~1.3 kW).
 3. **Ev bazlı ayırma (`split_by_house`).**
 4. **Normalizasyon (`Normalizer`):** toplam güç z-skor ile, cihaz gücü eğitimdeki maksimuma bölünerek ölçeklenir. İstatistikler **yalnızca eğitim verisinden** öğrenilir; `y_inverse` tahmini Watt'a geri çevirir.
-5. **Pencereleme (`windows`):** seq2point için 599 adımlık (~1 saat) pencere; hedef pencerenin ortasındaki cihaz gücü. Pencereler ev/cihaz sınırlarını ve atılan zaman boşluklarını aşmaz.
+5. **Pencereleme (`windows`, `WindowDataset`):** küçük veride `prep.windows`, gerçek eğitimde bellek dostu `nilm/data/dataset.py` (`make_datasets`) kullanılır; ikisi birebir aynı pencereleri üretir.
+   Pencere ayrıntısı: seq2point için 599 adımlık (~1 saat) pencere; hedef pencerenin ortasındaki cihaz gücü. Pencereler ev/cihaz sınırlarını ve atılan zaman boşluklarını aşmaz.
 
 ## 8. Modeller
 

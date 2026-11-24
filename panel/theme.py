@@ -17,7 +17,7 @@ APPLIANCES = {
     "microwave": ("Mikrodalga", "#F0507A"),
 }
 _FALLBACK = ["#64748B", "#A16207", "#0F766E", "#9D174D"]
-MODEL_COLORS = ["#0E1B2E", "#12B5A6", "#7C5CFC", "#FF9F1C", "#F0507A", "#2F80ED"]
+MODEL_COLORS = ["#12B5A6", "#7C5CFC", "#FF9F1C", "#F0507A", "#2F80ED", "#0E1B2E"]
 
 
 def tr(appliance: str) -> str:

@@ -9,7 +9,7 @@ from panel import charts, data, theme
 
 pred, res, demo = data.load()
 theme.page_header("Model karşılaştırma",
-                  "Aynı test verisinde modellerin hata ve doğruluk ölçütleri. MAE, SAE ve fatura hatasında düşük, F1'de yüksek değer iyidir.",
+                  "Hangi model faturayı cihazlara daha iyi bölüyor? Önce modellerin genel sıralaması, sonra hangi modelin hangi cihazda güçlü olduğu.",
                   demo=demo)
 
 kinds = sorted(res["kind"].dropna().unique())
@@ -20,6 +20,7 @@ with c1:
 with c2:
     metric = st.selectbox("Ölçüt", list(report.METRICS), format_func=report.METRICS.get)
 r = res[res["kind"] == kind]
+lower_better = metric != "f1"
 
 cols = list(report.METRICS) + ["predict_ms"]
 ozet = r.groupby("model")[cols].mean().reset_index().rename(columns={"model": "Model"})
@@ -34,10 +35,14 @@ b = ozet.loc[ozet["f1"].idxmax()]
 cells.append(dict(lab="En yüksek F1", num=f"{b['f1']:.2f}", sub=f"Model: {b['Model']}", small=True))
 theme.strip(cells)
 
-theme.section("Cihaz bazında", report.METRICS[metric])
-st.altair_chart(charts.model_bars(r, metric, report.METRICS[metric]), width="stretch")
+theme.section("Genel sıralama", f"{report.METRICS[metric]}. Cihazlar üzerinden ortalama, en iyi model üstte.")
+st.altair_chart(charts.rank_bars(ozet, metric, report.METRICS[metric], lower_better), width="stretch")
 
-theme.section("Model özeti", "Cihazlar üzerinden ortalama.")
+theme.section("Hangi model hangi cihazda iyi?",
+              "Her cihaz kendi içinde değerlendirilir: koyu kutu, o cihazda daha iyi olan modeldir. Çerçeveli kutu en iyi modeli gösterir. Kutudaki sayı seçili ölçütün değeridir.")
+st.altair_chart(charts.heatmap(r, metric, report.METRICS[metric], lower_better), width="stretch")
+
+theme.section("Tüm ölçütler", "Cihazlar üzerinden ortalama.")
 st.dataframe(ozet, width="stretch", hide_index=True, column_config={
     "mae": st.column_config.NumberColumn("MAE (W)", format="%.2f"),
     "sae": st.column_config.NumberColumn("SAE", format="%.3f"),

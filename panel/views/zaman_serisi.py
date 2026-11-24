@@ -15,7 +15,7 @@ model, house, price = data.sidebar(pred, demo)
 sub = pred[(pred["model"] == model) & (pred["house"] == house)]
 
 theme.page_header("Gerçek ve tahmin edilen güç",
-                  "Seçilen cihazın gerçek gücü (dolgulu alan) ile modelin tahmini (kesikli çizgi) aynı grafikte.",
+                  "Seçilen cihazın gerçek gücü (renkli alan) ile modelin tahmini (lacivert çizgi) aynı grafikte. Üzerine gelince değerleri görürsünüz.",
                   chips=[f"Ev {house}", f"Model: {model}"], demo=demo)
 if sub.empty:
     st.error("Bu model ve ev için veri yok. Kenar çubuğundan başka bir seçim yapın.")
@@ -41,10 +41,12 @@ else:
         start = st.slider("Başlangıç", lo, hi - win.to_pytimedelta(), lo, format="DD.MM HH:mm")
     end = start + win.to_pytimedelta()
 
-o1, o2, o3 = st.columns(3)
-show_agg = o1.toggle("Toplam gücü göster", value=False)
-show_on = o2.toggle("Cihazın AÇIK olduğu dönemleri işaretle", value=True)
-show_err = o3.toggle("Hata grafiğini göster", value=False)
+SMOOTH = {"Yok": 1, "Hafif": 5, "Orta": 15, "Güçlü": 60}
+o1, o2, o3, o4 = st.columns([1.2, 1, 1.4, 1])
+smooth = o1.select_slider("Yumuşatma", list(SMOOTH), value="Hafif", help="Yalnızca grafiği sadeleştirir; metrikler ham veriden hesaplanır.")
+show_agg = o2.toggle("Toplam gücü göster", value=False)
+show_on = o3.toggle("AÇIK dönemleri işaretle", value=False)
+show_err = o4.toggle("Hata grafiği", value=False)
 
 g = g_all[(g_all["timestamp"] >= start) & (g_all["timestamp"] <= end)]
 if g.empty:
@@ -74,7 +76,10 @@ if show_on:
 
 step = max(1, len(g) // 2500)  # grafiği hafif tut
 view = g.rename(columns={"appliance_w": "Gerçek", "predicted_w": "Tahmin", "aggregate_w": "Toplam"})[
-    ["timestamp", "Gerçek", "Tahmin", "Toplam"]].iloc[::step]
+    ["timestamp", "Gerçek", "Tahmin", "Toplam"]]
+if SMOOTH[smooth] > 1:
+    view = view.assign(**{c: view[c].rolling(SMOOTH[smooth], min_periods=1, center=True).mean() for c in ("Gerçek", "Tahmin", "Toplam")})
+view = view.iloc[::step]
 st.altair_chart(charts.series(view, dev, show_agg, bands), width="stretch")
 if show_err:
     theme.section("Hata", "Tahmin eksi gerçek. Kehribar: fazla tahmin, mavi: eksik tahmin.")

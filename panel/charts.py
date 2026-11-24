@@ -39,39 +39,37 @@ def ribbon(bill: pd.DataFrame):
     return _style((bars + text).properties(height=190))
 
 
+def _rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.DataFrame | None = None):
-    """Gerçek (dolgulu alan) ve tahmin (kesikli çizgi) zaman serisi; üzerine gelince değerleri gösterir."""
+    """Gerçek güç (gradyanlı alan, adım çizgisi) ve tahmin (ince lacivert çizgi); imleçle değerleri gösterir."""
     c = theme.color(appliance)
-    x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%d.%m %H:%M", grid=False))
-    y = alt.Y("Gerçek:Q", title="Güç (W)")
+    x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%d.%m %H:%M", grid=False, tickCount=6, labelFontSize=11, domain=False, ticks=False))
+    yax = alt.Axis(tickCount=5, gridColor="#EDF1F6", gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)
+    y = alt.Y("Gerçek:Q", title="Güç (W)", axis=yax)
+    grad = alt.Gradient(gradient="linear", x1=1, x2=1, y1=1, y2=0,
+                        stops=[alt.GradientStop(color=_rgba(c, 0.0), offset=0), alt.GradientStop(color=_rgba(c, 0.55), offset=1)])
     nearest = alt.selection_point(fields=["timestamp"], nearest=True, on="mouseover", empty=False, clear="mouseout")
     layers = []
     if bands is not None and not bands.empty:
-        layers.append(alt.Chart(bands).mark_rect(color=c, opacity=0.09).encode(x=alt.X("start:T"), x2="end:T"))
+        layers.append(alt.Chart(bands).mark_rect(color=c, opacity=0.06).encode(x=alt.X("start:T"), x2="end:T"))
     if show_aggregate:
-        layers.append(alt.Chart(df).mark_line(color="#B6C2D3", strokeWidth=1.2).encode(x=x, y=alt.Y("Toplam:Q", title="Güç (W)")))
-    layers.append(alt.Chart(df).mark_area(color=c, opacity=0.28, line={"color": c, "strokeWidth": 1.6}).encode(x=x, y=y))
-    layers.append(alt.Chart(df).mark_line(color=theme.INK, strokeDash=[5, 3], strokeWidth=1.8).encode(x=x, y=alt.Y("Tahmin:Q")))
+        layers.append(alt.Chart(df).mark_line(color="#C9D3E0", strokeWidth=1, interpolate="step-after").encode(
+            x=x, y=alt.Y("Toplam:Q", title="Güç (W)", axis=yax)))
+    layers.append(alt.Chart(df).mark_area(color=grad, interpolate="step-after", line={"color": c, "strokeWidth": 1.6}).encode(x=x, y=y))
+    layers.append(alt.Chart(df).mark_line(color=theme.INK, strokeWidth=1.7, interpolate="step-after").encode(x=x, y=alt.Y("Tahmin:Q")))
     tips = [alt.Tooltip("timestamp:T", format="%d.%m %H:%M:%S", title="Zaman"),
             alt.Tooltip("Gerçek:Q", format=".0f", title="Gerçek (W)"), alt.Tooltip("Tahmin:Q", format=".0f", title="Tahmin (W)")]
     layers.append(alt.Chart(df).mark_point(opacity=0).encode(x=x, y=y).add_params(nearest))
-    layers.append(alt.Chart(df).mark_rule(color="#94A3B8").encode(x=x, tooltip=tips).transform_filter(nearest))
-    return _style(alt.layer(*layers).properties(height=360).interactive(bind_y=False))
-
-
-def model_bars(r: pd.DataFrame, metric: str, title: str):
-    models = sorted(r["model"].unique())
-    colors = [theme.MODEL_COLORS[i % len(theme.MODEL_COLORS)] for i in range(len(models))]
-    d = r.groupby(["appliance", "model"], as_index=False)[metric].mean()
-    d["Cihaz"] = d["appliance"].map(theme.tr)
-    order = [theme.tr(a) for a in theme.APPLIANCES if theme.tr(a) in set(d["Cihaz"])] or sorted(d["Cihaz"].unique())
-    ch = alt.Chart(d).mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
-        x=alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelLimit=140)),
-        xOffset=alt.XOffset("model:N"),
-        y=alt.Y(f"{metric}:Q", title=title),
-        color=alt.Color("model:N", scale=alt.Scale(domain=models, range=colors), title="Model"),
-        tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
-    return _style(ch.properties(height=330))
+    layers.append(alt.Chart(df).mark_rule(color="#94A3B8", strokeDash=[3, 3]).encode(x=x, tooltip=tips).transform_filter(nearest))
+    layers.append(alt.Chart(df).mark_circle(size=70, color=c, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(x=x, y=y).transform_filter(nearest))
+    layers.append(alt.Chart(df).mark_circle(size=70, color=theme.INK, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(
+        x=x, y=alt.Y("Tahmin:Q")).transform_filter(nearest))
+    return _style(alt.layer(*layers).properties(height=380).interactive(bind_y=False))
 
 
 def donut(bill: pd.DataFrame):
@@ -99,20 +97,48 @@ def donut(bill: pd.DataFrame):
 
 
 def bars(bill: pd.DataFrame):
-    """Cihaz bazında gerçek ve tahmin fatura çubukları (yatay, yan yana)."""
-    d = pd.concat([
-        pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "Seri": "Gerçek", "TL": bill["Gerçek (TL)"].round(2).to_numpy()}),
-        pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "Seri": "Tahmin", "TL": bill["Tahmin (TL)"].round(2).to_numpy()})])
-    order = [theme.tr(a) for a in bill.index]
+    """Dikey, cihaz renkli çubuklar: dolu çubuk gerçek, açık dolgulu çubuk tahmin."""
+    names, colors = theme.palette(list(bill.index))
+    rows = []
+    for seri, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+        for a, v in bill[col].items():
+            rows.append(dict(Cihaz=theme.tr(a), Seri=seri, TL=round(float(v), 2)))
+    d = pd.DataFrame(rows)
     base = alt.Chart(d).encode(
-        y=alt.Y("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=180, ticks=False, domain=False)),
-        yOffset=alt.YOffset("Seri:N", sort=["Gerçek", "Tahmin"]),
-        x=alt.X("TL:Q", title="Fatura (TL)", axis=alt.Axis(grid=True, format=",.0f", tickCount=6)))
-    bar = base.mark_bar(cornerRadiusEnd=3, size=16).encode(
-        color=alt.Color("Seri:N", scale=alt.Scale(domain=["Gerçek", "Tahmin"], range=["#B6C2D3", theme.INK]), title=None),
+        x=alt.X("Cihaz:N", sort=names, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False)),
+        xOffset=alt.XOffset("Seri:N", sort=["Gerçek", "Tahmin"]),
+        y=alt.Y("TL:Q", title="Fatura (TL)", axis=alt.Axis(format=",.0f", tickCount=5)))
+    bar = base.mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5, size=34, strokeWidth=2).encode(
+        color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+        stroke=alt.Stroke("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+        fillOpacity=alt.FillOpacity("Seri:N", scale=alt.Scale(domain=["Gerçek", "Tahmin"], range=[1.0, 0.28]), legend=None),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("Seri:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)")])
-    txt = base.mark_text(align="left", dx=6, fontSize=12, font=FONT, color=theme.MUTED).encode(text=alt.Text("TL:Q", format=",.1f"))
-    return _style((bar + txt).properties(height=max(220, 70 * len(order))))
+    txt = base.mark_text(dy=-8, fontSize=12, font=FONT, color=theme.INK, fontWeight=500).encode(text=alt.Text("TL:Q", format=",.1f"))
+    return _style((bar + txt).properties(height=340))
+
+
+def stacked(bill: pd.DataFrame):
+    """Dikey şerit: iki sütun (gerçek, tahmin), cihaz dilimleri üst üste."""
+    names, colors = theme.palette(list(bill.index))
+    rows = []
+    for seri, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+        total = max(float(bill[col].sum()), 1e-9)
+        start = 0.0
+        for a, v in bill[col].items():
+            v = float(v)
+            rows.append(dict(Seri=seri, Cihaz=theme.tr(a), TL=round(v, 2), Pay=round(v / total * 100, 1),
+                             start=start, end=start + v, mid=start + v / 2, label=f"{v:,.0f}" if v / total >= 0.07 else ""))
+            start += v
+    d = pd.DataFrame(rows)
+    x = alt.X("Seri:N", sort=["Gerçek", "Tahmin"], title=None,
+              axis=alt.Axis(labelAngle=0, labelFontSize=14, labelColor=theme.INK, ticks=False, domain=False, labelPadding=8))
+    bar = alt.Chart(d).mark_bar(size=120, cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
+        x=x, y=alt.Y("start:Q", title="Fatura (TL)", axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
+        color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+        tooltip=[alt.Tooltip("Seri:N"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
+                 alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
+    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=13, font=FONT).encode(x=x, y="mid:Q", text="label:N")
+    return _style((bar + txt).properties(height=380))
 
 
 def residual(df: pd.DataFrame):
@@ -126,3 +152,66 @@ def residual(df: pd.DataFrame):
         x=x, y=alt.Y("v:Q", title="Hata (W)"))
     zero = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(color="#94A3B8").encode(y="y:Q")
     return _style((pos + neg + zero).properties(height=150))
+
+
+def rank_bars(ozet: pd.DataFrame, metric: str, title: str, lower_better: bool):
+    """Genel sıralama: modellerin cihazlar üzerinden ortalaması; en iyi üstte."""
+    d = ozet[["Model", metric]].sort_values(metric, ascending=lower_better).reset_index(drop=True)
+    models = list(d["Model"])
+    all_models = sorted(models)
+    palette = {m: theme.MODEL_COLORS[i % len(theme.MODEL_COLORS)] for i, m in enumerate(all_models)}
+    base = alt.Chart(d).encode(
+        y=alt.Y("Model:N", sort=models, title=None, axis=alt.Axis(labelFontSize=14, labelColor=theme.INK, labelLimit=260, ticks=False, domain=False)),
+        x=alt.X(f"{metric}:Q", title=title, axis=alt.Axis(tickCount=5)))
+    bar = base.mark_bar(cornerRadiusEnd=4, size=26).encode(
+        color=alt.Color("Model:N", scale=alt.Scale(domain=all_models, range=[palette[m] for m in all_models]), legend=None),
+        tooltip=[alt.Tooltip("Model:N"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
+    txt = base.mark_text(align="left", dx=8, fontSize=13, font=FONT, color=theme.INK, fontWeight=600).encode(text=alt.Text(f"{metric}:Q", format=".3f"))
+    return _style((bar + txt).properties(height=max(110, 56 * len(models))))
+
+
+def heatmap(r: pd.DataFrame, metric: str, title: str, lower_better: bool):
+    """Model x cihaz ısı haritası. Koyu renk daha iyi; her cihazın en iyi modeli çerçeveli."""
+    d = r.groupby(["appliance", "model"], as_index=False)[metric].mean()
+    d["Cihaz"] = d["appliance"].map(theme.tr)
+    best = d.groupby("Cihaz")[metric].transform("min" if lower_better else "max")
+    d["best"] = d[metric] == best
+    # Renk, her cihazın içinde modeller arası göreli konumu gösterir (koyu = o cihazda daha iyi).
+    g = d.groupby("Cihaz")[metric]
+    lo, hi = g.transform("min"), g.transform("max")
+    span = (hi - lo).where(hi > lo)
+    d["score"] = ((d[metric] - lo) / span).fillna(0.7)
+    if lower_better:
+        d["score"] = (1 - d["score"]).where(span.notna(), 0.7)
+    d["label"] = d[metric].map(lambda v: f"{v:.2f}" if abs(v) >= 0.1 else f"{v:.3f}")
+    order = [theme.tr(a) for a in theme.APPLIANCES if theme.tr(a) in set(d["Cihaz"])] or sorted(d["Cihaz"].unique())
+    models = sorted(d["model"].unique())
+    x = alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False, orient="top"))
+    y = alt.Y("model:N", sort=models, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=260, ticks=False, domain=False))
+    scale = alt.Scale(domain=[0, 1], range=["#E4F5F2", "#0B6B61"])
+    rect = alt.Chart(d).mark_rect(stroke="#FFFFFF", strokeWidth=3, cornerRadius=4).encode(
+        x=x, y=y, color=alt.Color("score:Q", scale=scale, legend=None),
+        tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
+    txt = alt.Chart(d).mark_text(fontSize=13, fontWeight=600, font=FONT).encode(
+        x=x, y=y, text="label:N",
+        color=alt.condition(alt.datum.score > 0.5, alt.value("#FFFFFF"), alt.value(theme.INK)))
+    layers = [rect, txt]
+    if len(models) > 1:  # tek modelde "en iyi" çerçevesi anlamsız
+        layers.insert(1, alt.Chart(d[d["best"]]).mark_rect(fill=None, stroke=theme.INK, strokeWidth=2.5, cornerRadius=4).encode(x=x, y=y))
+    return _style(alt.layer(*layers).properties(height=max(110, 62 * len(models))))
+
+
+def model_bars(r: pd.DataFrame, metric: str, title: str):
+    """Cihaz bazında, modeller yan yana dikey çubuklar."""
+    models = sorted(r["model"].unique())
+    colors = [theme.MODEL_COLORS[i % len(theme.MODEL_COLORS)] for i in range(len(models))]
+    d = r.groupby(["appliance", "model"], as_index=False)[metric].mean()
+    d["Cihaz"] = d["appliance"].map(theme.tr)
+    order = [theme.tr(a) for a in theme.APPLIANCES if theme.tr(a) in set(d["Cihaz"])] or sorted(d["Cihaz"].unique())
+    ch = alt.Chart(d).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, size=26).encode(
+        x=alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelLimit=140, ticks=False, domain=False)),
+        xOffset=alt.XOffset("model:N"),
+        y=alt.Y(f"{metric}:Q", title=title, axis=alt.Axis(tickCount=5)),
+        color=alt.Color("model:N", scale=alt.Scale(domain=models, range=colors), title="Model"),
+        tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
+    return _style(ch.properties(height=330))

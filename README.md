@@ -2,6 +2,8 @@
 
 Ekip: Yusuf (veri), Ersin (modeller), Kamil (değerlendirme & web paneli).
 
+Ayrıntılı proje belgesi: [PROJE.md](PROJE.md)
+
 ## Ortak kararlar
 - **Veri biçimi** (`nilm/data/schema.py`): her kayıt `timestamp`, `aggregate_w`, `appliance_w` (+ `house`, `appliance`).
 - **Model arayüzü** (`nilm/models/base.py`): her model `fit(train)` ve `predict(aggregate)` sağlar.
@@ -37,4 +39,3 @@ streamlit run panel/app.py                  # web paneli
 ```
 - Yeni model eklemek için `scripts/run_eval.py` içindeki `MODELS` sözlüğüne sınıfı eklemek yeterli.
 - F1 için cihaz bazlı AÇIK eşikleri `nilm/config.py` → `ON_THRESHOLD_W`.
-- Not: `config.VAL_HOUSES=[5]` şu an `TRAIN_HOUSES` içinde; değerlendirme yalnızca eğitimde olmayan / `UNSEEN_HOUSES` evleri test eder.

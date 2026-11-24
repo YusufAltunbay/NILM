@@ -2,7 +2,7 @@
 
 Kullanım:
   python -m scripts.run_eval --synthetic            # sahte veriyle deneme
-  python -m scripts.run_eval --data data/processed/ukdale.parquet
+  python -m scripts.run_eval --data data/processed/fridge.h5
 Modeller MODELS sözlüğüne eklenir (Ersin'in seq2point / BERT4NILM sınıfları buraya girer).
 """
 import argparse
@@ -27,7 +27,8 @@ def load(args) -> tuple[pd.DataFrame, str]:
         from scripts import synthetic
         return synthetic.make(), "synthetic"
     path = Path(args.data)
-    df = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
+    readers = {".parquet": pd.read_parquet, ".h5": lambda p: pd.read_hdf(p, "data")}
+    df = readers.get(path.suffix, pd.read_csv)(path)
     return validate(df), path.stem
 
 

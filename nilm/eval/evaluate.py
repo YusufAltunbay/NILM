@@ -3,7 +3,7 @@ from nilm import config
 from nilm.eval import metrics, results
 
 
-def evaluate(model, test, dataset, appliance, log=True):
+def evaluate(model, test, dataset, appliance, log=True, return_pred=False):
     agg, y = test["aggregate_w"].to_numpy(), test["appliance_w"].to_numpy()
     t0 = time.perf_counter()
     p = model.predict(agg)
@@ -14,4 +14,4 @@ def evaluate(model, test, dataset, appliance, log=True):
                predict_ms=ms)
     if log:
         results.append(row)
-    return row
+    return (row, p) if return_pred else row

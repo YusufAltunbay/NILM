@@ -23,8 +23,10 @@ pip install -r requirements.txt
 python -m pytest -q                         # metrik testleri
 python -m scripts.run_eval --synthetic --fresh   # sahte veriyle deneme (gerçek veri: --data <dosya>)
 python -m nilm.eval.report                  # results/summary.csv + results/figures/*.png
-streamlit run panel/app.py                  # web paneli
+streamlit run panel/app.py                  # web paneli (4 sayfa; dosya yoksa demo modu)
 ```
 - Yeni model eklemek için `scripts/run_eval.py` içindeki `MODELS` sözlüğüne sınıfı eklemek yeterli.
 - F1 için cihaz bazlı AÇIK eşikleri `nilm/config.py` → `ON_THRESHOLD_W`.
 - Not: `config.VAL_HOUSES=[5]` şu an `TRAIN_HOUSES` içinde; değerlendirme yalnızca eğitimde olmayan / `UNSEEN_HOUSES` evleri test eder.
+- Panel `results/results.csv` ve `results/predictions/<model>.csv.gz` dosyalarını okur; biçim `docs/cikti_bicimi.md` içinde.
+  Yeni bir model `MODELS`'a eklenip `run_eval` çalıştırılınca panelde otomatik görünür.

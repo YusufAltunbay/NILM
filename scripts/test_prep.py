@@ -32,4 +32,10 @@ seg = prep._segments(tr["timestamp"], 6)
 assert len(seg) == 2
 assert len(X) == sum(len(s) - 98 for s in seg)
 assert abs(X.mean()) < 0.1 and y.max() <= 1.0
+# üst sınır ve bekleme eşiği
+t = pd.DataFrame({"timestamp": pd.date_range("2024-01-01", periods=4, freq="6s"),
+                  "house": 1, "appliance": ["fridge"] * 2 + ["microwave"] * 2,
+                  "aggregate_w": 5000.0, "appliance_w": [1900.0, 90.0, 50.0, 1300.0]})
+assert prep.clean(t)["appliance_w"].tolist() == [300.0, 90.0, 0.0, 1300.0]
+
 print("tamam:", len(raw), "->", len(c), "satır;", X.shape, "pencere")

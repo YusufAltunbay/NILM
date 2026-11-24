@@ -21,6 +21,7 @@ pages = [
     st.Page("views/tuketim.py", title="Fatura dağılımı", icon=":material/receipt_long:", default=True),
     st.Page("views/zaman_serisi.py", title="Zaman serisi", icon=":material/show_chart:"),
     st.Page("views/karsilastirma.py", title="Model karşılaştırma", icon=":material/compare_arrows:"),
+    st.Page("views/tasarruf.py", title="Tasarruf", icon=":material/savings:"),
     st.Page("views/gorulmeyen_ev.py", title="Görülmeyen ev", icon=":material/home_work:"),
 ]
 st.navigation(pages).run()

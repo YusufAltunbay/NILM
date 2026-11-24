@@ -79,7 +79,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .sec-note {{ color: {MUTED}; font-size: .92rem; margin: 0 0 .6rem 0; max-width: 70ch; }}
 
 .strip {{ display: flex; flex-wrap: wrap; background: #fff; border: 1px solid {LINE}; border-radius: 8px; margin: 1.1rem 0 .4rem 0; }}
-.strip .cell {{ flex: 1 1 220px; padding: 18px 26px; border-right: 1px solid {LINE}; }}
+.strip .cell {{ flex: 1 1 170px; padding: 18px 26px; border-right: 1px solid {LINE}; }}
 .strip .cell:last-child {{ border-right: none; }}
 .strip .lab {{ font-size: .88rem; color: {MUTED}; margin-bottom: 2px; }}
 .strip .num {{ font-size: 2.5rem; font-weight: 700; line-height: 1.1; color: {INK}; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }}

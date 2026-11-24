@@ -340,3 +340,22 @@ def scorecard(d: pd.DataFrame):
     txt = alt.Chart(d).mark_text(dy=-8, fontSize=11, font=FONT, color=theme.INK, fontWeight=600).encode(tooltip=alt.value(None), 
         x=alt.X("Ölçüt:N", sort=order), xOffset=alt.XOffset("Model:N", sort=models), y="Skor:Q", text=alt.Text("Skor:Q", format=".0f"))
     return _style((ch + txt).properties(height=330))
+
+
+def savings_bars(s: pd.DataFrame):
+    """Cihaz bazında aylık tasarruf (TL). s: index=cihaz, 'Tasarruf TL' sütunu."""
+    d = s[s["Tasarruf TL"] > 0].reset_index()
+    d = d.rename(columns={d.columns[0]: "appliance"})
+    d["Cihaz"] = d["appliance"].map(theme.tr)
+    d = d.sort_values("Tasarruf TL", ascending=False)
+    names, colors = theme.palette(list(d["appliance"]))
+    base = alt.Chart(d).encode(
+        y=alt.Y("Cihaz:N", sort=list(d["Cihaz"]), title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=220, ticks=False, domain=False)),
+        x=alt.X("Tasarruf TL:Q", title="Aylık tasarruf (TL)", axis=alt.Axis(tickCount=5, format=",.0f")))
+    bar = base.mark_bar(cornerRadiusEnd=4, height={"band": 0.6}).encode(
+        color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+        tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("Tasarruf TL:Q", format=",.2f", title="Aylık tasarruf (TL)"),
+                 alt.Tooltip("Tasarruf kWh:Q", format=",.1f", title="Aylık tasarruf (kWh)")])
+    txt = base.mark_text(align="left", dx=8, fontSize=13, font=FONT, color=theme.INK, fontWeight=600).encode(
+        tooltip=alt.value(None), text=alt.Text("Tasarruf TL:Q", format=",.1f"))
+    return _style((bar + txt).properties(height=max(110, 52 * len(d))))

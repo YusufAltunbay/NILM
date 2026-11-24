@@ -95,6 +95,12 @@ Yeni model, `scripts/run_eval.py` içindeki `MODELS` sözlüğüne eklenince de�
 
 `model, dataset, appliance, mae, sae, f1, tl_error, predict_ms` — her deney bir satır. `nilm/eval/results.py` yazar, `nilm/eval/report.py` özet ve grafik üretir, panel okur.
 
+### 5.4 Tahmin dosyaları — `nilm/eval/predictions.py`
+
+Panel gerçek ve tahmin zaman serisini göstereceği için her deneyin tahminleri de kaydedilir:
+`results/predictions/{model}__{cihaz}__house{n}.h5` (key `data`), sütunlar `timestamp, aggregate_w, appliance_w, pred_w` (W). Satır sayısı test verisiyle aynıdır (`predict` aynı uzunlukta dönmek zorunda; pencere kenarlarını 0 ile doldur).
+Üretmek için: `python -m scripts.run_eval --data data/processed --save-preds`. Kaydetme `evaluate(..., save_preds=True)` ile yapılır, model tarafında ek bir şey gerekmez.
+
 ## 6. Sistem mimarisi
 
 ```
@@ -231,7 +237,7 @@ streamlit run panel/app.py
 - [x] Ev ayrımı — eğitim 1 (+3, 4 su ısıtıcısı için), doğrulama 5, test 2
 - [x] ~~TL/kWh birim fiyatı~~ → 3.24 TL (Nisan 2026 mesken tarifesi, Kamil)
 - [ ] Cihaz bazlı açık/kapalı eşiklerinin doğrulanması
-- [ ] Tahmin çıktı dosyalarının biçimi (panel için)
+- [x] Tahmin çıktı dosyalarının biçimi — Bölüm 5.4 (Ersin ve Kamil onaylayacak)
 
 ## 17. Riskler ve yedek planlar
 

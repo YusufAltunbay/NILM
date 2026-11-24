@@ -3,3 +3,6 @@ pandas
 tables
 scikit-learn
 torch
+matplotlib
+streamlit
+pytest

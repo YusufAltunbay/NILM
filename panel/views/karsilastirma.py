@@ -2,51 +2,104 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import numpy as np
+import pandas as pd
 import streamlit as st
 
+from nilm import config
 from nilm.eval import report
-from panel import charts, data, theme
+from panel import blocks, charts, data, theme
 
 pred, res, demo = data.load()
+models, house, price = data.sidebar(pred, demo)
+
 theme.page_header("Model karşılaştırma",
-                  "Hangi model faturayı cihazlara daha iyi bölüyor? Önce modellerin genel sıralaması, sonra hangi modelin hangi cihazda güçlü olduğu.",
-                  demo=demo)
+                  "Seçili tüm modeller aynı evde, aynı veriyle yarışıyor. Kim önde, hangi cihazda güçlü, faturayı kim daha iyi böldü?",
+                  chips=[f"Ev {house}", f"{len(models)} model"], demo=demo)
+if len(models) < 2:
+    st.info("Karşılaştırma için sol panelden en az iki model seçin.")
+    st.stop()
 
-kinds = sorted(res["kind"].dropna().unique())
-labels = {"test": "Test evleri", "unseen": "Hiç görülmeyen ev"}
-c1, c2 = st.columns([1, 1])
-with c1:
-    kind = st.segmented_control("Veri", kinds, default=kinds[0], format_func=lambda k: labels.get(k, k)) or kinds[0]
-with c2:
-    metric = st.selectbox("Ölçüt", list(report.METRICS), format_func=report.METRICS.get)
-r = res[res["kind"] == kind]
-lower_better = metric != "f1"
+r = res[res["dataset"].str.contains(rf"house{house}\(") & res["model"].isin(models)]
+if r.empty:
+    st.error("Bu ev için sonuç yok. Sol panelden başka bir ev seçin.")
+    st.stop()
 
-cols = list(report.METRICS) + ["predict_ms"]
-ozet = r.groupby("model")[cols].mean().reset_index().rename(columns={"model": "Model"})
+METRICS = ["mae", "sae", "tl_error", "f1"]
+LABEL = {"mae": "MAE", "sae": "SAE", "tl_error": "Fatura hatası", "f1": "F1"}
+FMT = {"mae": "{:.2f} W", "sae": "{:.3f}", "tl_error": "{:.3f} TL", "f1": "{:.2f}"}
+ozet = r.groupby("model")[METRICS].mean()
+LOWER = {"mae": True, "sae": True, "tl_error": True, "f1": False}
 
-LOWER = {"mae": ("En düşük MAE", "W", "{:.2f}"), "sae": ("En düşük SAE", "", "{:.3f}"),
-         "tl_error": ("En düşük fatura hatası", "TL", "{:.3f}")}
-cells = []
-for m, (lab, unit, fmt) in LOWER.items():
-    b = ozet.loc[ozet[m].idxmin()]
-    cells.append(dict(lab=lab, num=fmt.format(b[m]), unit=unit, sub=f"Model: {b['Model']}", small=True))
-b = ozet.loc[ozet["f1"].idxmax()]
-cells.append(dict(lab="En yüksek F1", num=f"{b['f1']:.2f}", sub=f"Model: {b['Model']}", small=True))
-theme.strip(cells)
+# ortalama sıra: her ölçütte 1. en iyi
+ranks = pd.DataFrame({m: ozet[m].rank(ascending=LOWER[m], method="min") for m in METRICS})
+ozet["sira"] = ranks.mean(axis=1)
+order = list(ozet.sort_values(["sira", "mae"]).index)
 
-theme.section("Genel sıralama", f"{report.METRICS[metric]}. Cihazlar üzerinden ortalama, en iyi model üstte.")
-st.altair_chart(charts.rank_bars(ozet, metric, report.METRICS[metric], lower_better), width="stretch")
+# ---- 1. podyum
+theme.section("Genel sıralama", "Dört ölçütte (MAE, SAE, fatura hatası, F1) ortalama sıraya göre. Yeşil nokta, o ölçütte en iyi olan modeldir.")
+best_in = {m: (ozet[m].min() if LOWER[m] else ozet[m].max()) for m in METRICS}
+cards = []
+for n, name in enumerate(order, 1):
+    row = ozet.loc[name]
+    cards.append(dict(color=theme.mcolor(name), name=name, rank=n, first=n == 1, tag="lider" if n == 1 else "",
+                      big=f"{row['sira']:.1f}", unit="ortalama sıra", sub=f"{len(order)} model arasında",
+                      rows=[(LABEL[m], FMT[m].format(row[m]), row[m] == best_in[m]) for m in METRICS]))
+theme.cards(cards)
 
-theme.section("Hangi model hangi cihazda iyi?",
-              "Her cihaz kendi içinde değerlendirilir: koyu kutu, o cihazda daha iyi olan modeldir. Çerçeveli kutu en iyi modeli gösterir. Kutudaki sayı seçili ölçütün değeridir.")
-st.altair_chart(charts.heatmap(r, metric, report.METRICS[metric], lower_better), width="stretch")
+# ---- 2. karne
+theme.section("Ölçüt karnesi", "Her ölçütte en iyi model 100 kabul edilir; diğerleri ona göre. Yüksek çubuk daha iyi demektir (hata ölçütlerinde de).")
+rows = []
+for m in METRICS:
+    best = best_in[m]
+    for name in order:
+        v = ozet.loc[name, m]
+        score = (100.0 if v == best else (best / v * 100 if LOWER[m] else v / best * 100)) if (best or not LOWER[m]) else 100.0
+        rows.append({"Ölçüt": LABEL[m], "Model": name, "Skor": float(np.clip(score, 0, 100)), "Değer": FMT[m].format(v)})
+st.altair_chart(charts.scorecard(pd.DataFrame(rows)), width="stretch")
 
-theme.section("Tüm ölçütler", "Cihazlar üzerinden ortalama.")
-st.dataframe(ozet, width="stretch", hide_index=True, column_config={
-    "mae": st.column_config.NumberColumn("MAE (W)", format="%.2f"),
-    "sae": st.column_config.NumberColumn("SAE", format="%.3f"),
-    "f1": st.column_config.ProgressColumn("F1", min_value=0.0, max_value=1.0, format="%.2f"),
-    "tl_error": st.column_config.NumberColumn("Fatura hatası (TL)", format="%.3f"),
-    "predict_ms": st.column_config.NumberColumn("Tahmin süresi (ms)", format="%.2f"),
-})
+# ---- 3. cihaz bazında
+theme.section("Cihaz cihaz karşılaştırma", "Aynı ölçüt, her cihaz için tüm modeller yan yana.")
+metric = st.segmented_control("Ölçüt", list(report.METRICS), default="mae", format_func=report.METRICS.get, key="km_metric") or "mae"
+t1, t2 = st.tabs(["Çubuk grafik", "Isı haritası"])
+with t1:
+    theme.model_legend(order)
+    st.altair_chart(charts.model_bars(r, metric, report.METRICS[metric]), width="stretch")
+with t2:
+    st.caption("Koyu kutu, o cihazda daha iyi olan modeldir. Çerçeveli kutu en iyisini gösterir.")
+    st.altair_chart(charts.heatmap(r, metric, report.METRICS[metric], metric != "f1"), width="stretch")
+
+# ---- 4. fatura yan yana
+theme.section("Fatura yan yana", f"Ev {house} için gerçek fatura ve her modelin tahmin ettiği fatura. Dilimler cihazlar, yükseklik tutardır.")
+bills = {"Gerçek": data.bill_table(pred, order[0], house, price)}
+for name in order:
+    bills[name] = data.bill_table(pred, name, house, price)
+if not bills["Gerçek"].empty:
+    theme.legend(list(bills["Gerçek"].index))
+    st.altair_chart(charts.stacked_multi(bills), width="stretch")
+    real_tl = bills["Gerçek"]["Gerçek (TL)"].sum()
+    st.caption(f"Gerçek fatura: {real_tl:,.2f} TL. " + " ".join(
+        f"{n}: {bills[n]['Tahmin (TL)'].sum():,.2f} TL ({(bills[n]['Tahmin (TL)'].sum() - real_tl) / real_tl * 100:+.1f}%)." for n in order))
+
+# ---- 5. aynı ana bakış
+theme.section("Aynı ana bakış", "Seçtiğiniz cihazın en hareketli 6 saatinde tüm modeller gerçek güçle yan yana.")
+devs = [a for a in theme.APPLIANCES if a in set(pred[pred["house"] == house]["appliance"])]
+dev = st.pills("Cihaz", devs, default=devs[0], format_func=theme.demoji, key="km_dev", label_visibility="collapsed") or devs[0]
+wf = data.wide(pred, house, dev, order)
+win = pd.Timedelta(hours=6)
+if wf["timestamp"].max() - wf["timestamp"].min() > win:
+    start = data.busiest_start(wf["timestamp"], wf["Gerçek"], win)
+else:
+    start = wf["timestamp"].min().to_pydatetime()
+blocks.compare_view(wf, dev, order, start, start + win.to_pytimedelta(), price, height=340)
+
+# ---- 6. tablo
+theme.section("Tüm ölçütler")
+tab = ozet.reset_index().rename(columns={"model": "Model"})
+tab = tab.loc[tab["Model"].map({n: i for i, n in enumerate(order)}).sort_values().index]
+cfg = {"sira": st.column_config.NumberColumn("Ortalama sıra", format="%.1f"),
+       "mae": st.column_config.NumberColumn("MAE (W)", format="%.2f"),
+       "sae": st.column_config.NumberColumn("SAE", format="%.3f"),
+       "f1": st.column_config.ProgressColumn("F1", min_value=0.0, max_value=1.0, format="%.2f"),
+       "tl_error": st.column_config.NumberColumn("Fatura hatası (TL)", format="%.3f")}
+st.dataframe(tab, width="stretch", hide_index=True, column_config=cfg)

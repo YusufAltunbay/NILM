@@ -7,7 +7,8 @@ import streamlit as st
 from panel import blocks, data, theme
 
 pred, res, demo = data.load()
-model, house, price = data.sidebar(pred, demo)
+models, house, price = data.sidebar(pred, demo)
+model = data.one_model(models, "model_tuketim")
 bill = data.bill_table(pred, model, house, price)
 
 theme.page_header("Faturanın cihazlara dağılımı",

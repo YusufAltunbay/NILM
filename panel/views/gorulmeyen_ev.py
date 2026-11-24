@@ -9,7 +9,8 @@ from nilm.eval import report
 from panel import blocks, charts, data, theme
 
 pred, res, demo = data.load()
-model, house, price = data.sidebar(pred, demo, houses_only=config.UNSEEN_HOUSES)
+models, house, price = data.sidebar(pred, demo, houses_only=config.UNSEEN_HOUSES)
+model = data.one_model(models, "model_unseen")
 house_txt = ", ".join(str(h) for h in config.UNSEEN_HOUSES)
 
 theme.page_header("Hiç görülmeyen evde başarı",

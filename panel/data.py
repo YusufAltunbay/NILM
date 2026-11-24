@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -24,9 +25,6 @@ def load():
         return pred, res, False
     from scripts import run_eval, synthetic
     df = synthetic.make(n=6000, n_test=200000)  # test evi ~14 gün
-    res = run_eval.run(df, "synthetic", list(run_eval.MODELS), log=False, save_preds=False)
-    res["kind"] = res["dataset"].str.extract(r"\((\w+)\)$")[0]
-    # demo tahminleri bellekte üret
     frames = []
     test_houses = [h for h in sorted(df["house"].unique()) if h not in config.TRAIN_HOUSES]
     for name, make in run_eval.MODELS.items():
@@ -38,7 +36,26 @@ def load():
                 f = predictions.to_frame(t, model.predict(t["aggregate_w"].to_numpy()))
                 f["model"] = name
                 frames.append(f)
-    return pd.concat(frames, ignore_index=True), res, True
+    pred = pd.concat(frames, ignore_index=True)
+    pred = pd.concat([pred, *_demo_models(pred)], ignore_index=True)
+    return pred, _results_from(pred), True
+
+
+def _demo_models(base: pd.DataFrame):
+    """Karşılaştırma ekranları dolu görünsün diye demo için iki sahte model üretir.
+    Gerçek modeller (Ersin) gelince bunlar kullanılmaz; adlarında (demo) yazar."""
+    out = []
+    rng = np.random.default_rng(7)
+    b = base[base["model"] == "mean"]
+    sd = b.groupby(["house", "appliance"])["appliance_w"].transform("std").fillna(0).to_numpy()
+    for name, skill, noise in (("Eşik (demo)", 0.55, 0.45), ("Derin ağ (demo)", 0.85, 0.12)):
+        f = b.copy()
+        y, m = f["appliance_w"].to_numpy(), f["predicted_w"].to_numpy()
+        p = skill * y + (1 - skill) * m + rng.normal(0, 1, len(f)) * noise * sd
+        f["predicted_w"] = np.clip(p, 0, f["aggregate_w"].to_numpy())
+        f["model"] = name
+        out.append(f)
+    return out
 
 
 def _results_from(pred: pd.DataFrame) -> pd.DataFrame:
@@ -57,21 +74,61 @@ def _results_from(pred: pd.DataFrame) -> pd.DataFrame:
 
 
 def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
-    """Ortak kenar çubuğu: model, ev, birim fiyat. -> (model, house, price)."""
+    """Ortak sol panel: modeller (birden fazla seçilebilir), ev, birim fiyat ve seçili evin özeti.
+    -> (models, house, price)."""
     from panel import theme
+    all_models = sorted(pred["model"].unique())
+    theme.register_models(all_models)
     with st.sidebar:
-        st.subheader("Görünüm")
-        if demo:
-            theme.demo_note()
-        models = sorted(pred["model"].unique())
-        model = st.selectbox("Model", models)
+        theme.side_label("Modeller (birden fazla seçilebilir)")
+        models = st.multiselect("Modeller", all_models, default=all_models, key="sb_models",
+                                label_visibility="collapsed") or all_models[:1]
         houses = sorted(pred["house"].unique())
         if houses_only:
             houses = [h for h in houses if h in houses_only] or houses
-        house = st.selectbox("Ev", houses)
-        price = st.number_input("Birim fiyat (TL/kWh)", 0.0, 50.0, float(config.TL_PER_KWH), 0.1)
+        theme.side_label("Ev")
+        house = st.selectbox("Ev", houses, key="sb_house_u" if houses_only else "sb_house",
+                             format_func=lambda h: f"Ev {h}", label_visibility="collapsed")
+        theme.side_label("Elektrik birim fiyatı (TL/kWh)")
+        price = st.number_input("Birim fiyat", 0.0, 50.0, float(config.TL_PER_KWH), 0.1, key="sb_price",
+                                label_visibility="collapsed")
+        bill = bill_table(pred, models[0], int(house), float(price))
+        if not bill.empty:
+            theme.side_card(f"Ev {house} toplam tüketim", f"{bill['Gerçek (TL)'].sum():,.0f}", "TL",
+                            f"{bill['Gerçek (kWh)'].sum():,.1f} kWh, izlenen {len(bill)} cihaz",
+                            [(theme.color(a), v) for a, v in bill["Gerçek (TL)"].items()])
+        theme.side_pills(["Demo verisi" if demo else "Gerçek veri", f"{len(models)} model", f"{len(houses)} ev"])
         theme.sidebar_footer()
-    return model, int(house), float(price)
+    return models, int(house), float(price)
+
+
+def one_model(models, key: str) -> str:
+    """Tek modelli sayfalar için: birden fazla model seçiliyse sayfada küçük bir seçici çıkar."""
+    if len(models) == 1:
+        return models[0]
+    return st.segmented_control("Gösterilen model", models, default=models[0], key=key) or models[0]
+
+
+def wide(pred: pd.DataFrame, house: int, appliance: str, models) -> pd.DataFrame:
+    """Bir cihaz için zaman damgası başına tek satır: Gerçek, Toplam ve her modelin tahmini (m0, m1, ...)."""
+    sub = pred[(pred["house"] == house) & (pred["appliance"] == appliance) & pred["model"].isin(models)]
+    first = sub[sub["model"] == models[0]].sort_values("timestamp")
+    out = first[["timestamp", "appliance_w", "aggregate_w"]].rename(columns={"appliance_w": "Gerçek", "aggregate_w": "Toplam"})
+    for i, m in enumerate(models):
+        part = sub[sub["model"] == m].drop_duplicates("timestamp").set_index("timestamp")["predicted_w"].rename(f"m{i}")
+        out = out.merge(part, left_on="timestamp", right_index=True, how="left")
+    return out.reset_index(drop=True)
+
+
+def busiest_start(ts: pd.Series, power: pd.Series, win: pd.Timedelta):
+    """Cihazın en çok enerji harcadığı pencerenin başlangıcı (dakikalık özetten, hızlı)."""
+    s = pd.Series(power.to_numpy(), index=pd.DatetimeIndex(ts)).resample("1min").mean().fillna(0)
+    n = max(1, int(win / pd.Timedelta(minutes=1)))
+    if len(s) <= n:
+        return s.index[0].to_pydatetime()
+    cs = np.r_[0, np.cumsum(s.to_numpy())]
+    k = int(np.argmax(cs[n:] - cs[:-n]))
+    return s.index[k].to_pydatetime()
 
 
 def bill_table(pred: pd.DataFrame, model: str, house: int, price: float) -> pd.DataFrame:

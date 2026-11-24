@@ -7,7 +7,10 @@ sys.path.insert(0, str(HERE.parent))
 
 import streamlit as st
 
+from panel import theme
+
 st.set_page_config(page_title="NILM paneli", page_icon=":material/bolt:", layout="wide")
+theme.inject()
 st.logo(str(HERE / "assets" / "logo.svg"), size="large")
 
 pages = [

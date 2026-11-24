@@ -2,90 +2,92 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import numpy as np
 import pandas as pd
 import streamlit as st
 
 from nilm import config
-from nilm.eval import metrics
-from panel import charts, data, theme
+from panel import blocks, charts, data, theme
 
 pred, res, demo = data.load()
-model, house, price = data.sidebar(pred, demo)
-sub = pred[(pred["model"] == model) & (pred["house"] == house)]
+models, house, price = data.sidebar(pred, demo)
+sub = pred[(pred["house"] == house) & pred["model"].isin(models)]
 
 theme.page_header("Gerçek ve tahmin edilen güç",
-                  "Seçilen cihazın gerçek gücü (renkli alan) ile modelin tahmini (lacivert çizgi) aynı grafikte. Üzerine gelince değerleri görürsünüz.",
-                  chips=[f"Ev {house}", f"Model: {model}"], demo=demo)
+                  "Renkli alan cihazın gerçek gücü, çizgiler seçili modellerin tahmini. Tüm modeller aynı grafikte üst üste, farkı gözle görebilirsiniz.",
+                  chips=[f"Ev {house}", f"{len(models)} model"], demo=demo)
 if sub.empty:
-    st.error("Bu model ve ev için veri yok. Kenar çubuğundan başka bir seçim yapın.")
+    st.error("Bu ev için veri yok. Sol panelden başka bir seçim yapın.")
     st.stop()
 
 devs = [a for a in theme.APPLIANCES if a in set(sub["appliance"])] or sorted(sub["appliance"].unique())
-dev = st.segmented_control("Cihaz", devs, default=devs[0], format_func=theme.tr, label_visibility="collapsed") or devs[0]
+mode = st.segmented_control("Görünüm", ["Cihaz detayı", "Tüm cihazlar"], default="Cihaz detayı", key="zs_mode",
+                            label_visibility="collapsed") or "Cihaz detayı"
+dev = devs[0]
+if mode == "Cihaz detayı":
+    dev = st.pills("Cihaz", devs, default=devs[0], format_func=theme.demoji, key="zs_dev", label_visibility="collapsed") or devs[0]
 
-g_all = sub[sub["appliance"] == dev].sort_values("timestamp")
-lo, hi = g_all["timestamp"].min().to_pydatetime(), g_all["timestamp"].max().to_pydatetime()
+# zaman ekseni
+ref = sub[sub["appliance"] == dev] if mode == "Cihaz detayı" else sub
+lo, hi = ref["timestamp"].min().to_pydatetime(), ref["timestamp"].max().to_pydatetime()
 total = hi - lo
-
 WINDOWS = {"1 saat": pd.Timedelta(hours=1), "6 saat": pd.Timedelta(hours=6), "1 gün": pd.Timedelta(days=1),
            "3 gün": pd.Timedelta(days=3), "Tümü": None}
-c1, c2 = st.columns([2, 3], vertical_alignment="bottom")
-with c1:
-    wname = st.segmented_control("Pencere", list(WINDOWS), default="6 saat") or "6 saat"
+d1, d2, d3 = st.columns([2.2, 3, 1.1], vertical_alignment="bottom")
+with d1:
+    wname = st.segmented_control("Pencere", list(WINDOWS), default="6 saat", key="zs_win") or "6 saat"
+with d3:
+    with st.popover("Ayarlar", icon=":material/tune:", width="stretch"):
+        smooth = st.select_slider("Yumuşatma", list(blocks.SMOOTH), value="Orta",
+                                  help="Yalnızca grafiği sadeleştirir; kartlardaki ölçütler ham veriden hesaplanır.")
+        show_agg = st.toggle("Toplam gücü göster", value=False)
+        show_on = st.toggle("AÇIK dönemleri işaretle", value=False)
+        show_err = st.toggle("Hata grafiği", value=False)
 win = WINDOWS[wname]
 if win is None or win >= total:
     start, end = lo, hi
 else:
-    with c2:
-        start = st.slider("Başlangıç", lo, hi - win.to_pytimedelta(), lo, format="DD.MM HH:mm")
+    if mode == "Cihaz detayı":
+        w0 = wfull = data.wide(pred, house, dev, models)
+        best = data.busiest_start(w0["timestamp"], w0["Gerçek"], win)
+    else:
+        tot = sub[sub["model"] == models[0]].groupby("timestamp")["appliance_w"].sum().reset_index()
+        best = data.busiest_start(tot["timestamp"], tot["appliance_w"], win)
+    best = min(max(best, lo), hi - win.to_pytimedelta())
+    with d2:
+        start = st.slider("Başlangıç (varsayılan: en hareketli an)", lo, hi - win.to_pytimedelta(), best,
+                          format="DD.MM HH:mm", key=f"zs_start_{mode}_{dev}_{wname}_{house}")
     end = start + win.to_pytimedelta()
 
-SMOOTH = {"Yok": 1, "Hafif": 5, "Orta": 15, "Güçlü": 60}
-o1, o2, o3, o4 = st.columns([1.2, 1, 1.4, 1])
-smooth = o1.select_slider("Yumuşatma", list(SMOOTH), value="Hafif", help="Yalnızca grafiği sadeleştirir; metrikler ham veriden hesaplanır.")
-show_agg = o2.toggle("Toplam gücü göster", value=False)
-show_on = o3.toggle("AÇIK dönemleri işaretle", value=False)
-show_err = o4.toggle("Hata grafiği", value=False)
-
-g = g_all[(g_all["timestamp"] >= start) & (g_all["timestamp"] <= end)]
-if g.empty:
-    st.info("Bu aralıkta veri yok. Pencereyi genişletin.")
-    st.stop()
-
-thr = config.ON_THRESHOLD_W.get(dev, config.DEFAULT_ON_THRESHOLD_W)
-y, p = g["appliance_w"].to_numpy(), g["predicted_w"].to_numpy()
-dt = config.SAMPLE_PERIOD_S
-f1 = metrics.f1_on_off(y, p, thr)
-strip_cells = [
-    dict(lab="Gerçek enerji", num=f"{metrics.energy_kwh(y, dt):,.3f}", unit="kWh", sub=f"{metrics.bill_tl(y, dt, price):,.2f} TL", small=True),
-    dict(lab="Tahmin edilen enerji", num=f"{metrics.energy_kwh(p, dt):,.3f}", unit="kWh", sub=f"{metrics.bill_tl(p, dt, price):,.2f} TL", small=True),
-    dict(lab="Ortalama hata (MAE)", num=f"{metrics.mae(y, p):,.1f}", unit="W", sub="Düşük iyidir", small=True),
-    dict(lab="AÇIK/KAPALI doğruluğu (F1)", num=f"{f1:.2f}", sub=f"Eşik: {thr:g} W", small=True,
-         tone="ok" if f1 >= 0.8 else ("over" if f1 < 0.5 else "")),
-]
-theme.strip(strip_cells)
-
-bands = None
-if show_on:
-    on = y > thr
-    edges = np.flatnonzero(np.diff(np.r_[False, on, False].astype(int)))
-    ts = g["timestamp"].to_numpy()
-    if 0 < len(edges) // 2 <= 400:  # çok sayıda küçük dönem grafiği boğar
-        bands = pd.DataFrame({"start": ts[edges[0::2]], "end": ts[np.minimum(edges[1::2], len(ts)) - 1]})
-
-step = max(1, len(g) // 2500)  # grafiği hafif tut
-view = g.rename(columns={"appliance_w": "Gerçek", "predicted_w": "Tahmin", "aggregate_w": "Toplam"})[
-    ["timestamp", "Gerçek", "Tahmin", "Toplam"]]
-if SMOOTH[smooth] > 1:
-    view = view.assign(**{c: view[c].rolling(SMOOTH[smooth], min_periods=1, center=True).mean() for c in ("Gerçek", "Tahmin", "Toplam")})
-view = view.iloc[::step]
-st.altair_chart(charts.series(view, dev, show_agg, bands), width="stretch")
-if show_err:
-    theme.section("Hata", "Tahmin eksi gerçek. Kehribar: fazla tahmin, mavi: eksik tahmin.")
-    st.altair_chart(charts.residual(view), width="stretch")
-
-note = f"{len(g):,} örnek" + (f", grafikte her {step}. örnek gösteriliyor." if step > 1 else ".")
-st.caption(note + " Grafiği fare tekerleğiyle yakınlaştırabilir, sürükleyerek kaydırabilirsiniz.")
-st.download_button("Bu aralığı indir (CSV)", g.to_csv(index=False).encode("utf-8-sig"),
-                   file_name=f"zaman_serisi_ev{house}_{dev.replace(' ', '_')}_{model}.csv", mime="text/csv")
+if mode == "Cihaz detayı":
+    if "wfull" not in dir():
+        wfull = data.wide(pred, house, dev, models)
+    g = blocks.compare_view(wfull, dev, models, start, end, price, smooth, show_agg, show_on, show_err)
+    mini = wfull.set_index("timestamp")["Gerçek"].resample("10min").mean().reset_index()
+    st.caption("Tüm kayıt (renkli kutu: şu an baktığınız pencere)")
+    st.altair_chart(charts.overview(mini, dev, start, end), width="stretch")
+    if g is not None:
+        out = g.rename(columns={f"m{i}": m for i, m in enumerate(models)})
+        st.download_button("Bu aralığı indir (CSV)", out.to_csv(index=False).encode("utf-8-sig"),
+                           file_name=f"zaman_serisi_ev{house}_{dev.replace(' ', '_')}.csv", mime="text/csv")
+else:
+    theme.model_legend(models, real_color="#94A3B8", real_label="Gerçek (renkli alan)")
+    frames, tiles = {}, []
+    for a in devs:
+        wf = data.wide(pred, house, a, models)
+        g = wf[(wf["timestamp"] >= start) & (wf["timestamp"] <= end)]
+        if g.empty:
+            continue
+        view, _ = blocks.smooth_view(g, models, smooth, max_points=900)
+        frames[a] = view
+        stt = blocks.window_stats(g, a, models, price)
+        if stt["models"]:
+            bm = min(stt["models"], key=lambda m: stt["models"][m]["mae"])
+            tiles.append(dict(color=theme.color(a), name=theme.tr(a), big=f"{stt['real']['kwh']:,.3f}", unit="kWh",
+                              sub=f"{stt['real']['tl']:,.2f} TL gerçek",
+                              rows=[("En yakın model", bm, False), ("Onun hatası (MAE)", f"{stt['models'][bm]['mae']:,.1f} W", False)]))
+    if frames:
+        theme.cards(tiles)
+        st.altair_chart(charts.facets(frames, models), width="stretch")
+        st.caption("Her cihazın ekseni kendi ölçeğindedir. Kartlar, seçili pencere içinde en düşük ortalama hataya sahip modeli gösterir.")
+    else:
+        st.info("Bu aralıkta veri yok.")

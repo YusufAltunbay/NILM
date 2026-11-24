@@ -17,7 +17,25 @@ APPLIANCES = {
     "microwave": ("Mikrodalga", "#F0507A"),
 }
 _FALLBACK = ["#64748B", "#A16207", "#0F766E", "#9D174D"]
-MODEL_COLORS = ["#12B5A6", "#7C5CFC", "#FF9F1C", "#F0507A", "#2F80ED", "#0E1B2E"]
+# Model renkleri cihaz renklerinden (mavi, mor, turuncu, turkuaz, pembe) ayrışsın diye ayrı bir set.
+MODEL_COLORS = ["#E11D48", "#16A34A", "#0891B2", "#CA8A04", "#9333EA", "#0E1B2E"]
+EMOJI = {"fridge": "\U0001F7E6", "washing machine": "\U0001F7EA", "kettle": "\U0001F7E7",
+         "dish washer": "\U0001F7E9", "microwave": "\U0001F7E5"}
+_MODELS: list = []
+
+
+def register_models(models):
+    """Tüm sayfalarda aynı modelin aynı rengi alması için model listesini bir kez kaydeder."""
+    _MODELS[:] = sorted(models)
+
+
+def mcolor(model: str) -> str:
+    i = _MODELS.index(model) if model in _MODELS else abs(hash(model))
+    return MODEL_COLORS[i % len(MODEL_COLORS)]
+
+
+def demoji(appliance: str) -> str:
+    return f"{EMOJI.get(appliance, chr(0x2B1C))} {tr(appliance)}"
 
 
 def tr(appliance: str) -> str:
@@ -42,7 +60,7 @@ _CSS = f"""
 .stApp h1, .stApp h2, .stApp h3, .nilm-title, .num {{ font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; }}
 .block-container {{ padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1200px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
-.stDeployButton, [data-testid="stAppDeployButton"], [data-testid="stToolbar"], #MainMenu, footer {{ display: none !important; }}
+.stDeployButton, [data-testid="stAppDeployButton"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu, footer {{ display: none !important; }}
 
 .nilm-title {{ font-size: 2.3rem; font-weight: 700; letter-spacing: -0.02em; color: {INK}; margin: 0 0 .15rem 0; line-height: 1.15; }}
 .nilm-sub {{ color: {MUTED}; max-width: 64ch; margin: 0 0 .9rem 0; font-size: 1.02rem; line-height: 1.55; }}
@@ -88,16 +106,66 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .callout b {{ color: {INK}; font-weight: 600; }}
 .ledger .share {{ display: inline-block; height: 7px; border-radius: 4px; margin-right: 8px; vertical-align: middle; }}
 .strip .num.sm {{ font-size: 1.9rem; }}
+
+/* ---- sol panel ---- */
+[data-testid="stSidebar"] {{ background: linear-gradient(185deg, #0E1B2E 0%, #0F2A42 55%, #0B3B45 100%) !important; }}
+[data-testid="stSidebarNavLink"] {{ border-radius: 10px !important; margin: 2px 0 !important; padding: .55rem .8rem !important; transition: background .15s; }}
+[data-testid="stSidebarNavLink"]:hover {{ background: rgba(255,255,255,.08) !important; }}
+[data-testid="stSidebarNavLink"][aria-current="page"] {{ background: linear-gradient(90deg, rgba(18,181,166,.34), rgba(18,181,166,.06)) !important;
+        box-shadow: inset 3px 0 0 #12B5A6; font-weight: 600; }}
+[data-testid="stSidebar"] [data-baseweb="tag"] {{ background: #12B5A6 !important; border-radius: 999px !important; color: #fff !important; }}
+[data-testid="stSidebar"] [data-baseweb="tag"] span {{ color: #fff !important; }}
+[data-testid="stSidebar"] [data-baseweb="select"] > div, [data-testid="stSidebar"] [data-testid="stNumberInputContainer"] {{ border-radius: 10px !important; }}
+.side-label {{ color: #8FA3BF; font-size: .82rem; margin: 1.05rem 0 .15rem 0; font-weight: 500; }}
+.sidecard {{ background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 14px 15px 13px 15px; margin: 1.1rem 0 .4rem 0; }}
+.sidecard .t {{ color: #8FA3BF; font-size: .8rem; }}
+.sidecard .v {{ font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; color: #fff; font-size: 1.75rem; font-weight: 700; line-height: 1.15; }}
+.sidecard .v small {{ font-size: .85rem; font-weight: 500; color: #8FA3BF; margin-left: 4px; font-family: 'Figtree', 'Segoe UI', sans-serif; }}
+.sidecard .s {{ color: #B9C7DA; font-size: .8rem; margin-top: 1px; }}
+.sidecard .bar {{ display: flex; height: 9px; border-radius: 6px; overflow: hidden; margin-top: 11px; gap: 2px; }}
+.sidecard .bar i {{ display: block; height: 100%; }}
+.sidepill {{ display: inline-block; background: rgba(255,255,255,.08); color: #D5E0EE; border-radius: 999px; padding: 2px 10px; font-size: .78rem; margin: 0 5px 5px 0; }}
+/* kapalı panelin açma düğmesi: görünür, turkuaz */
+[data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"] button {{ background: #12B5A6 !important; color: #fff !important; border-radius: 12px !important;
+        box-shadow: 0 6px 18px -6px rgba(18,181,166,.7); }}
+[data-testid="stExpandSidebarButton"] svg, [data-testid="stSidebarCollapsedControl"] svg {{ color: #fff !important; fill: #fff !important; }}
+[data-testid="stSidebarCollapseButton"] button {{ color: #B9C7DA !important; }}
+
+/* ---- kartlar ---- */
+.cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: .7rem 0 .4rem 0; }}
+.card {{ background: #fff; border: 1px solid {LINE}; border-top: 4px solid var(--c); border-radius: 14px; padding: 15px 18px 14px 18px;
+        box-shadow: 0 1px 2px rgba(14,27,46,.04), 0 10px 24px -14px rgba(14,27,46,.22); }}
+.card.first {{ background: linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, #fff) 0%, #fff 70%); border-color: color-mix(in srgb, var(--c) 40%, {LINE}); }}
+.card .nm {{ display: flex; align-items: center; gap: 9px; font-weight: 600; color: {INK}; font-size: 1.02rem; margin-bottom: 8px; }}
+.card .rk {{ width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--c); color: #fff; display: inline-flex; align-items: center; justify-content: center;
+        font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: .95rem; }}
+.card .tag {{ margin-left: auto; background: #E0F7F4; color: #0B6B61; border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600; }}
+.card .big {{ font-family: 'Bricolage Grotesque', 'Segoe UI', sans-serif; font-size: 1.85rem; font-weight: 700; color: {INK}; line-height: 1.1; letter-spacing: -0.02em; }}
+.card .big small {{ font-size: .9rem; color: {MUTED}; font-weight: 500; margin-left: 5px; font-family: 'Figtree', 'Segoe UI', sans-serif; letter-spacing: 0; }}
+.card .big-sub {{ color: {MUTED}; font-size: .84rem; margin-bottom: 8px; }}
+.card .kv {{ display: flex; justify-content: space-between; align-items: center; font-size: .88rem; color: {MUTED}; padding: 3px 0; }}
+.card .kv b {{ color: {INK}; font-weight: 600; font-variant-numeric: tabular-nums; }}
+.card .kv b.win {{ color: #0F766E; }}
+.card .kv b.win::before {{ content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #12B5A6; margin-right: 6px; vertical-align: 1px; }}
+.mleg {{ display: inline-flex; align-items: center; gap: 7px; background: #fff; border: 1px solid {LINE}; border-radius: 999px; padding: 3px 12px 3px 9px; font-size: .88rem; color: {INK}; margin: 0 8px 6px 0; }}
+.mleg i {{ display: inline-block; width: 18px; height: 4px; border-radius: 3px; }}
+.mleg i.real {{ height: 10px; width: 14px; border-radius: 3px; opacity: .5; }}
+[data-testid="stPopover"] button, [data-testid="stPopoverButton"] {{ border-radius: 10px; }}
 @media (max-width: 720px) {{ .nilm-title {{ font-size: 1.7rem; }} .strip .num {{ font-size: 2rem; }} }}
 </style>
 """
+
+
+def inject():
+    """Tüm sayfalar için CSS (app.py bir kez çağırır)."""
+    st.markdown(_CSS, unsafe_allow_html=True)
 
 
 def page_header(title: str, sub: str = "", chips=(), demo: bool = False):
     chip_html = "".join(f'<span class="chip">{html.escape(c)}</span>' for c in chips)
     if demo:
         chip_html += '<span class="chip demo">Demo verisi</span>'
-    st.markdown(_CSS + f'<h1 class="nilm-title">{html.escape(title)}</h1>'
+    st.markdown(f'<h1 class="nilm-title">{html.escape(title)}</h1>'
                 f'<p class="nilm-sub">{html.escape(sub)}</p><div>{chip_html}</div>',
                 unsafe_allow_html=True)
 
@@ -183,3 +251,45 @@ def sidebar_footer():
 def demo_note():
     st.markdown('<div class="demo-note">Sahte demo verisi gösteriliyor. Gerçek sonuçlar için '
                 '<b>python -m scripts.run_eval --data ...</b> çalıştırın.</div>', unsafe_allow_html=True)
+
+
+def side_label(text: str):
+    st.markdown(f'<div class="side-label">{html.escape(text)}</div>', unsafe_allow_html=True)
+
+
+def side_card(title: str, value: str, unit: str, sub: str, shares: list):
+    """Kenar çubuğunda seçili evin özeti. shares: [(renk, pay)]."""
+    tot = sum(v for _, v in shares) or 1.0
+    bar = "".join(f'<i style="background:{c};width:{v / tot * 100:.1f}%"></i>' for c, v in shares if v > 0)
+    st.markdown(f'<div class="sidecard"><div class="t">{html.escape(title)}</div>'
+                f'<div class="v">{html.escape(value)}<small>{html.escape(unit)}</small></div>'
+                f'<div class="s">{html.escape(sub)}</div><div class="bar">{bar}</div></div>', unsafe_allow_html=True)
+
+
+def side_pills(items):
+    st.markdown("".join(f'<span class="sidepill">{html.escape(i)}</span>' for i in items), unsafe_allow_html=True)
+
+
+def model_legend(models, real_color: str | None = None, real_label: str = "Gerçek"):
+    items = ""
+    if real_color:
+        items += f'<span class="mleg"><i class="real" style="background:{real_color}"></i>{html.escape(real_label)}</span>'
+    items += "".join(f'<span class="mleg"><i style="background:{mcolor(m)}"></i>{html.escape(m)}</span>' for m in models)
+    st.markdown(f'<div>{items}</div>', unsafe_allow_html=True)
+
+
+def cards(items):
+    """Kart ızgarası. item: dict(color, name, rank=None, tag='', big='', unit='', sub='', rows=[(etiket, değer, kazanan_mı)], first=False)."""
+    out = ""
+    for c in items:
+        rk = f'<span class="rk">{c["rank"]}</span>' if c.get("rank") else ""
+        tag = f'<span class="tag">{html.escape(c["tag"])}</span>' if c.get("tag") else ""
+        big = ""
+        if c.get("big"):
+            unit = f"<small>{html.escape(c.get('unit', ''))}</small>" if c.get("unit") else ""
+            big = f'<div class="big">{c["big"]}{unit}</div><div class="big-sub">{html.escape(c.get("sub", ""))}</div>'
+        rows = "".join(f'<div class="kv"><span>{html.escape(k)}</span><b class="{"win" if w else ""}">{html.escape(v)}</b></div>'
+                       for k, v, w in c.get("rows", []))
+        out += (f'<div class="card{" first" if c.get("first") else ""}" style="--c:{c["color"]}">'
+                f'<div class="nm">{rk}<span>{html.escape(c["name"])}</span>{tag}</div>{big}{rows}</div>')
+    st.markdown(f'<div class="cards">{out}</div>', unsafe_allow_html=True)

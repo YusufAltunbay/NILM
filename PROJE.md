@@ -216,7 +216,7 @@ streamlit run panel/app.py
 
 - [ ] Cihaz listesi (UK-DALE ev analizinden sonra)
 - [ ] Ev ayrımının cihaz bazında uyarlanması (eksik cihazlar için)
-- [ ] TL/kWh birim fiyatı (`config.TL_PER_KWH`, şu an 3.0 yer tutucu)
+- [x] ~~TL/kWh birim fiyatı~~ → 3.24 TL (Nisan 2026 mesken tarifesi, Kamil)
 - [ ] Cihaz bazlı açık/kapalı eşiklerinin doğrulanması
 - [ ] Tahmin çıktı dosyalarının biçimi (panel için)
 

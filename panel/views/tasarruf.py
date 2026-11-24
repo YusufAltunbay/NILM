@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
 
-from panel import charts, data, savings, theme
+from panel import charts, data, insights, savings, theme
 
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
@@ -33,7 +33,12 @@ def set_all(pct: int):
 def apply_preset():
     p = st.session_state.get("ts_preset")
     if p:
-        set_all({"Hafif": 10, "Orta": 20, "Sıkı": 30}[p])
+        for a, pct in savings.preset_cuts(apps, p).items():
+            st.session_state[K(a)] = pct
+
+
+def add_one(a, pct):
+    st.session_state[K(a)] = pct
 
 
 def apply_plan(plan):
@@ -46,10 +51,10 @@ def scenario_view():
     left, right = st.columns([0.9, 1.9], gap="large")
     with left:
         theme.section("Senaryo")
-        st.segmented_control("Hazır senaryo", ["Hafif", "Orta", "Sıkı"], key="ts_preset", on_change=apply_preset,
+        st.segmented_control("Hazır senaryo", list(savings.PRESETS), key="ts_preset", on_change=apply_preset,
                              label_visibility="collapsed")
         for a in theme.ordered(apps):
-            st.slider(theme.demoji(a), 0, savings.MAX_CUT, step=savings.STEP, key=K(a), format="%d%%")
+            st.slider(theme.demoji(a), 0, savings.MAX_CUT, step=savings.STEP, key=K(a), format="%d%%", help=f"Bu cihaz için gerçekçi azaltma: %{savings.tip_range(a)[0]}-{savings.tip_range(a)[1]}")
         st.button("Sıfırla", on_click=set_all, args=(0,), icon=":material/restart_alt:")
     cuts = {a: st.session_state[K(a)] for a in apps}
     sc = savings.scenario(m, cuts)
@@ -76,18 +81,28 @@ theme.section("Hedefe göre plan")
 t1, t2 = st.columns([1, 2], vertical_alignment="bottom")
 with t1:
     target = st.number_input("Faturayı yüzde kaç düşürmek istiyorsun?", 1, 50, 10, step=1, key="ts_target")
-plan, ok = savings.plan_for_target(m, target)
+plan, ok, potential = savings.plan_for_target(m, target)
+total_tl = m["TL"].sum()
 with t2:
     if plan:
         txt = ", ".join(f"{theme.tr(a)} %{p}" for a, p in plan.items())
         done = savings.scenario(m, plan)["Tasarruf TL"].sum()
-        st.markdown(f"**Plan:** {txt}. Aylık yaklaşık **{done:,.2f} TL** tasarruf." + ("" if ok else " Bu hedefe tek başına ulaşmaz, her cihazda üst sınır %50."))
+        st.markdown(f"**Plan:** {txt}. Aylık yaklaşık **{done:,.2f} TL** tasarruf."
+                    + ("" if ok else f" Gerçekçi toplam potansiyel ayda {potential:,.0f} TL (%{potential / total_tl * 100:.0f}), hedef bunun üstünde."))
         st.button("Planı senaryoya uygula", on_click=apply_plan, args=(plan,), icon=":material/check:")
 
-theme.section("Öneriler", "Oranlar tahminidir.")
-cards = []
-for s in savings.suggestions(m):
-    cards.append(dict(color=theme.color(s["appliance"]), name=theme.tr(s["appliance"]), big=f"{s['low']:,.0f}-{s['high']:,.0f}", unit="TL/ay",
-                      sub=s["tip"], rows=[("Faturadaki payı", f"%{s['share']:.0f}", False), ("Aylık tutar", f"{s['tl']:,.2f} TL", False),
-                                          ("Tahmini azalma", f"%{s['lo']}-{s['hi']}", False)]))
-theme.cards(cards)
+theme.section("Öncelikli öneriler", "Kazancı en yüksek olandan başlar. Azaltma oranları tahminidir.")
+sug = savings.suggestions(m)
+if sug:
+    best = sug[0]
+    theme.callout(f"En büyük fırsat: <b>{theme.tr(best['appliance'])}</b>. Ayda tahminen <b>{best['low']:,.0f}-{best['high']:,.0f} TL</b> tasarruf mümkün.")
+cols = st.columns(len(sug)) if sug else []
+for n, (col, sg) in enumerate(zip(cols, sug), 1):
+    a = sg["appliance"]
+    facts = insights.describe(data.usage_facts(house, model, a, price))
+    rows = [(k, v, False) for k, v in facts] + [("Faturadaki payı", f"%{sg['share']:.0f}", False)]
+    with col:
+        theme.cards([dict(color=theme.color(a), name=theme.tr(a), rank=n, first=n == 1, tag="önce bunu dene" if n == 1 else "",
+                          big=f"{sg['low']:,.0f}-{sg['high']:,.0f}", unit="TL/ay", sub=sg["tip"], rows=rows)], min_h=330)
+        st.button(f"Senaryoya ekle (%{sg['mid_pct']})", key=f"add_{a}", on_click=add_one, args=(a, sg["mid_pct"]),
+                  icon=":material/add:", width="stretch")

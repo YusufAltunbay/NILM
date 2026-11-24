@@ -20,7 +20,7 @@ if len(models) < 2:
 
 r = res[res["dataset"].str.contains(rf"house{house}\(") & res["model"].isin(models)]
 if r.empty:
-    st.error("Bu ev için sonuç yok. Sol panelden başka bir ev seçin.")
+    st.error("Bu ev için sonuç yok.")
     st.stop()
 
 METRICS = ["mae", "sae", "tl_error", "f1"]

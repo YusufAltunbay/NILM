@@ -207,3 +207,15 @@ def _bill(model: str, house: int, price: float) -> pd.DataFrame:
 def bill_table(pred, model: str, house: int, price: float) -> pd.DataFrame:
     """Seçili model ve ev için cihaz bazlı kWh ve TL tablosu. Önbellekli."""
     return _bill(str(model), int(house), round(float(price), 6))
+
+
+@st.cache_resource(max_entries=64)
+def _facts(house: int, model: str, appliance: str, price: float) -> dict:
+    from panel import insights
+    w = _wide(house, appliance, (model,))
+    return insights.usage_facts(w["timestamp"], w["m0"], appliance, price)
+
+
+def usage_facts(house, model, appliance, price) -> dict:
+    """Kullanım sayısı, bir kullanımın maliyeti, en yoğun saat, bekleme payı. Önbellekli."""
+    return _facts(int(house), str(model), str(appliance), round(float(price), 6))

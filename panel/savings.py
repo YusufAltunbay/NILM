@@ -18,6 +18,24 @@ TIPS = {
 GENERIC = ("Kullanım süresini ve sıklığını azalt.", 5, 15)
 
 
+PRESETS = ("Hafif", "Orta", "Sıkı")
+
+
+def tip_range(appliance: str):
+    _, lo, hi = TIPS.get(appliance, GENERIC)
+    return lo, hi
+
+
+def preset_cuts(appliances, level: str) -> dict:
+    """Her cihaz için kendi gerçekçi aralığından: Hafif = alt sınır, Orta = orta nokta, Sıkı = üst sınır."""
+    t = {"Hafif": 0.0, "Orta": 0.5, "Sıkı": 1.0}[level]
+    out = {}
+    for a in appliances:
+        lo, hi = tip_range(a)
+        out[a] = min(MAX_CUT, int(round((lo + (hi - lo) * t) / STEP) * STEP))
+    return out
+
+
 def span_days(timestamps: pd.Series) -> float:
     """Verinin kapsadığı gün sayısı (en az 1)."""
     return max(1.0, (timestamps.max() - timestamps.min()).total_seconds() / 86400)
@@ -38,28 +56,32 @@ def scenario(m: pd.DataFrame, cuts: dict) -> pd.DataFrame:
     return out
 
 
-def plan_for_target(m: pd.DataFrame, target_pct: float, cap: int = MAX_CUT):
-    """Faturayı target_pct kadar düşürmek için en pahalı cihazdan başlayarak azaltma planı.
-    -> (plan {cihaz: %}, hedef tutuyor mu)."""
+def plan_for_target(m: pd.DataFrame, target_pct: float):
+    """Faturayı target_pct kadar düşürmek için plan. Her cihaz kendi gerçekçi tavanını (TIPS üst sınırı) aşmaz;
+    kazancı en yüksek cihazdan başlanır. -> (plan {cihaz: %}, hedef tutuyor mu, toplam potansiyel TL)."""
     need = m["TL"].sum() * target_pct / 100
+    cap = {a: tip_range(a)[1] for a in m.index}
+    potential = {a: m.loc[a, "TL"] * cap[a] / 100 for a in m.index}
     plan = {}
-    for a in m["TL"].sort_values(ascending=False).index:
+    for a in sorted(potential, key=potential.get, reverse=True):
         tl = m.loc[a, "TL"]
         if need <= 1e-9 or tl <= 0:
             break
-        take = min(cap / 100 * tl, need)
-        pct = min(cap, math.ceil(take / tl * 100 / STEP - 1e-9) * STEP)
-        plan[a] = int(pct)
-        need -= pct / 100 * tl
-    return plan, need <= 1e-6
+        take = min(potential[a], need)
+        pct = min(cap[a], math.ceil(take / tl * 100 / STEP - 1e-9) * STEP)
+        pct = max(STEP, pct) if cap[a] >= STEP else cap[a]
+        plan[a] = int(min(MAX_CUT, pct))
+        need -= plan[a] / 100 * tl
+    return plan, need <= 1e-6, sum(potential.values())
 
 
 def suggestions(m: pd.DataFrame, top: int = 3):
-    """En pahalı cihazlar için öneri kartı verisi."""
+    """Tasarruf POTANSİYELİ (TL, aralığın ortası) en yüksek cihazlar önce. Fatura payı değil, kazanç sıralar."""
     total = m["TL"].sum() or 1.0
-    out = []
-    for a in m["TL"].sort_values(ascending=False).index[:top]:
+    rows = []
+    for a in m.index:
         text, lo, hi = TIPS.get(a, GENERIC)
         tl = m.loc[a, "TL"]
-        out.append(dict(appliance=a, tip=text, share=tl / total * 100, tl=tl, low=tl * lo / 100, high=tl * hi / 100, lo=lo, hi=hi))
-    return out
+        rows.append(dict(appliance=a, tip=text, share=tl / total * 100, tl=tl, low=tl * lo / 100, high=tl * hi / 100,
+                         mid=tl * (lo + hi) / 200, lo=lo, hi=hi, mid_pct=min(MAX_CUT, int(round((lo + hi) / 2 / STEP) * STEP))))
+    return sorted(rows, key=lambda r: r["mid"], reverse=True)[:top]

@@ -147,6 +147,10 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .sideuser small {{ color: #8FA3BF; }}
 .sideuser .av {{ width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #12B5A6, #2F80ED); color: #fff; display: inline-flex;
         align-items: center; justify-content: center; font-weight: 700; flex: none; }}
+
+/* grafik araç çubuğu: yalnızca PNG indir ve tam ekran kalsın ("Show data" geri dönüşsüz, "Copy spec" teknik) */
+[data-testid="stElementToolbarButton"]:has(button[aria-label="Show data"]),
+[data-testid="stElementToolbarButton"]:has(button[aria-label="Copy Vega-Lite spec"]) {{ display: none !important; }}
 /* ---- kartlar ---- */
 .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: .7rem 0 .4rem 0; }}
 .card {{ background: #fff; border: 1px solid {LINE}; border-top: 4px solid var(--c); border-radius: 14px; padding: 15px 18px 14px 18px;
@@ -304,7 +308,7 @@ def model_legend(models, real_color: str | None = None, real_label: str = "Gerç
     st.markdown(f'<div>{items}</div>', unsafe_allow_html=True)
 
 
-def cards(items):
+def cards(items, min_h: int = 0):
     """Kart ızgarası. item: dict(color, name, rank=None, tag='', big='', unit='', sub='', rows=[(etiket, değer, kazanan_mı)], first=False)."""
     out = ""
     for c in items:
@@ -316,6 +320,6 @@ def cards(items):
             big = f'<div class="big">{c["big"]}{unit}</div><div class="big-sub">{html.escape(c.get("sub", ""))}</div>'
         rows = "".join(f'<div class="kv"><span>{html.escape(k)}</span><b class="{"win" if w else ""}">{html.escape(v)}</b></div>'
                        for k, v, w in c.get("rows", []))
-        out += (f'<div class="card{" first" if c.get("first") else ""}" style="--c:{c["color"]}">'
+        out += (f'<div class="card{" first" if c.get("first") else ""}" style="--c:{c["color"]};min-height:{min_h}px">'
                 f'<div class="nm">{rk}<span>{html.escape(c["name"])}</span>{tag}</div>{big}{rows}</div>')
     st.markdown(f'<div class="cards">{out}</div>', unsafe_allow_html=True)

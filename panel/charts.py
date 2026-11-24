@@ -75,7 +75,7 @@ def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.Dat
     layers.append(alt.Chart(df).mark_circle(size=70, color=c, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(x=x, y=y).transform_filter(nearest))
     layers.append(alt.Chart(df).mark_circle(size=70, color=theme.INK, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(
         x=x, y=alt.Y("Tahmin:Q")).transform_filter(nearest))
-    return _style(alt.layer(*layers).properties(height=380).interactive(bind_y=False))
+    return _style(alt.layer(*layers).properties(height=380))
 
 
 def donut(bill: pd.DataFrame):
@@ -263,7 +263,7 @@ def series_multi(df: pd.DataFrame, appliance: str, models, show_aggregate: bool 
     for i, m in enumerate(models):
         layers.append(alt.Chart(df).mark_circle(size=60, color=theme.mcolor(m), stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(
             x=x, y=alt.Y(f"m{i}:Q")).transform_filter(nearest))
-    return _style(alt.layer(*layers).properties(height=height).interactive(bind_y=False))
+    return _style(alt.layer(*layers).properties(height=height))
 
 
 def overview(df: pd.DataFrame, appliance: str, start, end):

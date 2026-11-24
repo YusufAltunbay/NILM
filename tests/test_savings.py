@@ -23,17 +23,28 @@ def test_scenario_savings():
     assert s["Tasarruf TL"].sum() == pytest.approx(33.0)
 
 
-def test_plan_reaches_target_from_most_expensive():
-    plan, ok = savings.plan_for_target(_m(), 20)   # 100 TL'nin %20'si = 20 TL
-    assert ok and list(plan) == ["b"]              # en pahalı cihaz tek başına yeter
-    saved = savings.scenario(_m(), plan)["Tasarruf TL"].sum()
-    assert saved >= 20 - 1e-6
+def _devices():
+    return pd.DataFrame({"kWh": [10.0, 20.0, 5.0], "TL": [100.0, 60.0, 40.0]}, index=["fridge", "kettle", "dish washer"])
 
 
-def test_plan_infeasible_when_target_too_high():
-    plan, ok = savings.plan_for_target(_m(), 80)   # tavan %50 olduğu için en çok %50 düşer
-    assert not ok
-    assert all(v <= savings.MAX_CUT for v in plan.values())
+def test_presets_differ_per_appliance_and_grow():
+    apps = ["fridge", "kettle", "tv"]
+    lo, mid, hi = (savings.preset_cuts(apps, p) for p in savings.PRESETS)
+    assert len({lo["fridge"], lo["kettle"]}) == 2            # her cihaz kendi aralığında
+    for a in apps:
+        assert lo[a] <= mid[a] <= hi[a] <= savings.MAX_CUT
+
+
+def test_plan_respects_per_device_cap():
+    plan, ok, potential = savings.plan_for_target(_devices(), 8)
+    caps = {a: savings.tip_range(a)[1] for a in plan}
+    assert ok and all(plan[a] <= caps[a] for a in plan)
+    assert savings.scenario(_devices(), plan)["Tasarruf TL"].sum() >= 8 - 1e-6
+
+
+def test_plan_infeasible_beyond_realistic_potential():
+    plan, ok, potential = savings.plan_for_target(_devices(), 40)
+    assert not ok and potential < 0.4 * 200
 
 
 def test_suggestions_rank_and_unknown_appliance():
@@ -41,3 +52,8 @@ def test_suggestions_rank_and_unknown_appliance():
     s = savings.suggestions(m)
     assert [x["appliance"] for x in s] == ["kettle", "tv"]
     assert s[1]["tip"] == savings.GENERIC[0]       # tanımsız cihaz için genel öneri
+
+
+def test_suggestions_rank_by_potential_not_bill_share():
+    m = pd.DataFrame({"kWh": [1, 1], "TL": [100.0, 60.0]}, index=["fridge", "kettle"])
+    assert savings.suggestions(m)[0]["appliance"] == "kettle"   # buzdolabı daha pahalı ama kısılacak yer az

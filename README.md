@@ -20,6 +20,17 @@ python -m scripts.inspect_ukdale    # evler, cihazlar, tarih aralıkları
 python -m scripts.prepare_ukdale    # data/processed/{cihaz}.h5 + örnek CSV
 ```
 
+## Model eğitimi için veri (Ersin)
+`data/processed/{cihaz}.h5` dosyaları hazır olunca (USB ile alınır, git'te yok):
+```python
+from nilm.data.dataset import make_datasets
+train, val, test, norm = make_datasets("fridge", window=599, stride=1)
+loader = torch.utils.data.DataLoader(train, batch_size=256, shuffle=True)   # x: (B, 599), y: (B,)
+watts = norm.y_inverse(pred)   # tahmini Watt'a çevirir
+```
+Pencereler eğitim sırasında kesilir (bellek ~0.1 GB; hepsini tutan `prep.windows` ev 1'de ~25 GB ister).
+`stride=10` eğitimi hızlandırır; val/test için `val_stride` ile seyreltilebilir.
+
 ## Dallar
 `main` korumalı; herkes `yusuf/...`, `ersin/...`, `kamil/...` dallarında çalışır, PR ile birleştirir.
 

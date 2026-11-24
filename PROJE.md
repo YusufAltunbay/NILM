@@ -115,7 +115,9 @@ ukdale.h5 ──► ukdale.load() ──► prep.clean() ──► data/processe
 ## 7. Veri hazırlama — `nilm/data/prep.py`
 
 1. **Yeniden örnekleme:** toplam ve cihaz sinyalleri 6 sn'lik ortalamalara indirilir (`ukdale.load`).
-2. **Temizleme (`clean`):** negatif ve 20 kW üstü değerler geçersiz sayılır; 3 dakikaya (30 adım) kadar boşluklar ileri doldurulur, daha uzunları atılır; cihaz gücü toplamı aşamaz (kırpılır).
+2. **Temizleme (`clean`):** negatif ve 20 kW üstü değerler geçersiz sayılır; 3 dakikaya (30 adım) kadar boşluklar ileri doldurulur, daha uzunları atılır; cihaz gücü toplamı aşamaz (kırpılır). Ardından:
+   - **Üst sınır (`config.MAX_POWER_W`):** buzdolabı 300 W, çamaşır/bulaşık makinesi 2500 W, su ısıtıcısı 3100 W, mikrodalga 3000 W. Buzdolabında kompresör kalkışında tek örneklik 1–2 kW tepeler var (günde 2–3 kez, ardından ~100 W); gerçek ama bilgi taşımıyor ve ölçeklemeyi bozuyordu.
+   - **Bekleme eşiği (`config.STANDBY_W`):** mikrodalgada 100 W altı 0 sayılır. Ev 5 mikrodalga sayacı Temmuz 2014'ten itibaren zamanın %90'ında sabit 50 W gösteriyor (gerçek kullanım günde ~0.4 kez, ~1.3 kW).
 3. **Ev bazlı ayırma (`split_by_house`).**
 4. **Normalizasyon (`Normalizer`):** toplam güç z-skor ile, cihaz gücü eğitimdeki maksimuma bölünerek ölçeklenir. İstatistikler **yalnızca eğitim verisinden** öğrenilir; `y_inverse` tahmini Watt'a geri çevirir.
 5. **Pencereleme (`windows`):** seq2point için 599 adımlık (~1 saat) pencere; hedef pencerenin ortasındaki cihaz gücü. Pencereler ev/cihaz sınırlarını ve atılan zaman boşluklarını aşmaz.
@@ -234,6 +236,7 @@ streamlit run panel/app.py
 
 | Risk | Önlem |
 |---|---|
+| Sayaç kaynaklı bozukluklar (ev 5 mikrodalga ofseti, buzdolabı kalkış tepeleri) | Cihaz bazlı üst sınır ve bekleme eşiği (Bölüm 7); yeni bir cihaz eklenirken dağılımı kontrol etmek |
 | Eğitim fiilen tek evden (ev 1) | Görülmeyen ev sonuçlarını bu sınırlamayla yorumlamak; gerekirse ev 5'i eğitime alıp doğrulamayı ev 1'in son aylarından yapmak |
 | Bazı cihazlar az evde var | Cihaz listesini veriye göre seçmek; görülmeyen ev testini cihaz bazında uyarlamak |
 | Hesaplama gücü yetersiz | Daha küçük pencere/model, alt örneklenmiş veri, Colab/Kaggle GPU |

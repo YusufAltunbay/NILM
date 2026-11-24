@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from nilm import config
 from nilm.data.schema import validate
 
 
@@ -12,6 +13,8 @@ def clean(df: pd.DataFrame, max_gap_steps=30, max_w=20_000) -> pd.DataFrame:
 
     max_gap_steps: 6 sn'de 30 adım = 3 dakikaya kadar boşluk doldurulur.
     Cihaz gücü toplamı aşamaz (ölçüm zaman kayması), o yüzden kırpılır.
+    Ardından cihaz bazlı üst sınır (config.MAX_POWER_W) ve bekleme eşiği
+    (config.STANDBY_W) uygulanır.
     """
     df = df.copy()
     for c in ["aggregate_w", "appliance_w"]:
@@ -19,6 +22,11 @@ def clean(df: pd.DataFrame, max_gap_steps=30, max_w=20_000) -> pd.DataFrame:
         df[c] = df.groupby(["house", "appliance"])[c].ffill(limit=max_gap_steps)
     df = df.dropna(subset=["aggregate_w", "appliance_w"])
     df["appliance_w"] = np.minimum(df["appliance_w"], df["aggregate_w"])
+    for app, g in df.groupby("appliance").groups.items():
+        w = df.loc[g, "appliance_w"]
+        w = w.clip(upper=config.MAX_POWER_W.get(app, max_w))
+        w = w.where(w >= config.STANDBY_W.get(app, 0.0), 0.0)
+        df.loc[g, "appliance_w"] = w
     return validate(df)
 
 

@@ -28,3 +28,9 @@ def test_tr_and_color_known_and_unknown():
     assert theme.tr("fridge") == "Buzdolabı"
     assert theme.tr("toaster") == "Toaster"
     assert theme.color("toaster").startswith("#")
+
+
+def test_ordered_keeps_unknown_appliances():
+    from panel import theme
+    assert theme.ordered(["tv", "kettle", "fridge"]) == ["fridge", "kettle", "tv"]
+    assert theme.color("tv") == theme.color("tv")  # çalıştırmalar arasında kararlı

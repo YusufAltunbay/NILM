@@ -23,19 +23,25 @@ def ribbon(bill: pd.DataFrame):
         for a, v in bill[col].items():
             share = v / total
             rows.append(dict(Satir=name, Cihaz=theme.tr(a), TL=round(v, 2), Pay=round(share * 100, 1),
-                             start=start, end=start + v, label=theme.tr(a) if share >= 0.13 else (theme.short(a) if share >= 0.06 else "")))
+                             start=start, end=start + v))
             start += v
     d = pd.DataFrame(rows)
     names, colors = theme.palette(list(bill.index))
     row_enc = alt.Y("Satir:N", sort=["Gerçek", "Tahmin"], title=None,
                     axis=alt.Axis(domain=False, ticks=False, labelFontSize=14, labelColor=theme.INK, labelPadding=10))
-    bars = alt.Chart(d).mark_bar(size=50, cornerRadius=3, stroke="#FFFFFF", strokeWidth=2).encode(
-        x=alt.X("start:Q", title="Fatura (TL)", axis=alt.Axis(grid=False, format=",.0f", tickCount=6, labelOverlap=True)), x2="end:Q", y=row_enc,
+    xmax = float(d["end"].max()) or 1.0
+    bars = alt.Chart(d).mark_bar(height={"band": 0.72}, cornerRadius=3, stroke="#FFFFFF", strokeWidth=2).encode(
+        x=alt.X("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, xmax], nice=False),
+                axis=alt.Axis(grid=False, format=",.0f", tickCount=6, labelOverlap=True)), x2="end:Q", y=row_enc,
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Satir:N", title="Satır"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
                  alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
-    text = alt.Chart(d).mark_text(align="left", dx=9, color="white", fontWeight=600, fontSize=13, font=FONT).encode(tooltip=alt.value(None), 
-        x="start:Q", y=row_enc, text="label:N")
+    # Etiket, dilimin ekrandaki genişliğine göre: sığıyorsa tam ad, sığmıyorsa kısaltılmış, hiç sığmıyorsa boş.
+    fit = (f"floor((datum.end - datum.start) / {xmax} * width / 7.4) - 2")
+    text = (alt.Chart(d).transform_calculate(n=fit).transform_calculate(
+        label="datum.n >= length(datum.Cihaz) ? datum.Cihaz : (datum.n >= 4 ? substring(datum.Cihaz, 0, datum.n - 1) + '…' : '')")
+        .mark_text(align="left", dx=9, color="white", fontWeight=600, fontSize=13, font=FONT).encode(
+        tooltip=alt.value(None), x="start:Q", y=row_enc, text="label:N"))
     return _style((bars + text).properties(height=190))
 
 
@@ -108,7 +114,7 @@ def bars(bill: pd.DataFrame):
         x=alt.X("Cihaz:N", sort=names, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False)),
         xOffset=alt.XOffset("Seri:N", sort=["Gerçek", "Tahmin"]),
         y=alt.Y("TL:Q", title="Fatura (TL)", axis=alt.Axis(format=",.0f", tickCount=5)))
-    bar = base.mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5, size=34, strokeWidth=2).encode(
+    bar = base.mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5, strokeWidth=2).encode(
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         stroke=alt.Stroke("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         fillOpacity=alt.FillOpacity("Seri:N", scale=alt.Scale(domain=["Gerçek", "Tahmin"], range=[1.0, 0.28]), legend=None),
@@ -127,17 +133,20 @@ def stacked(bill: pd.DataFrame):
         for a, v in bill[col].items():
             v = float(v)
             rows.append(dict(Seri=seri, Cihaz=theme.tr(a), TL=round(v, 2), Pay=round(v / total * 100, 1),
-                             start=start, end=start + v, mid=start + v / 2, label=f"{v:,.0f}" if v / total >= 0.07 else ""))
+                             start=start, end=start + v, mid=start + v / 2))
             start += v
     d = pd.DataFrame(rows)
     x = alt.X("Seri:N", sort=["Gerçek", "Tahmin"], title=None,
               axis=alt.Axis(labelAngle=0, labelFontSize=14, labelColor=theme.INK, ticks=False, domain=False, labelPadding=8))
-    bar = alt.Chart(d).mark_bar(size=120, cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
-        x=x, y=alt.Y("start:Q", title="Fatura (TL)", axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
+    ymax = float(d["end"].max()) * 1.04 or 1.0
+    bar = alt.Chart(d).mark_bar(width={"band": 0.55}, cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
+        x=x, y=alt.Y("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, ymax], nice=False), axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
                  alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
-    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=13, font=FONT).encode(tooltip=alt.value(None), x=x, y="mid:Q", text="label:N")
+    # Tutar etiketi yalnızca dilim yeterince yüksekse yazılır (yükseklik ekrandaki piksele göre hesaplanır).
+    txt = (alt.Chart(d).transform_calculate(label=f"(datum.end - datum.start) / {ymax} * height >= 17 ? format(datum.TL, ',.0f') : ''")
+           .mark_text(color="white", fontWeight=600, fontSize=13, font=FONT).encode(tooltip=alt.value(None), x=x, y="mid:Q", text="label:N"))
     return _style((bar + txt).properties(height=380))
 
 
@@ -163,7 +172,7 @@ def rank_bars(ozet: pd.DataFrame, metric: str, title: str, lower_better: bool):
     base = alt.Chart(d).encode(
         y=alt.Y("Model:N", sort=models, title=None, axis=alt.Axis(labelFontSize=14, labelColor=theme.INK, labelLimit=260, ticks=False, domain=False)),
         x=alt.X(f"{metric}:Q", title=title, axis=alt.Axis(tickCount=5)))
-    bar = base.mark_bar(cornerRadiusEnd=4, size=26).encode(
+    bar = base.mark_bar(cornerRadiusEnd=4, height={"band": 0.6}).encode(
         color=alt.Color("Model:N", scale=alt.Scale(domain=all_models, range=[palette[m] for m in all_models]), legend=None),
         tooltip=[alt.Tooltip("Model:N"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
     txt = base.mark_text(align="left", dx=8, fontSize=13, font=FONT, color=theme.INK, fontWeight=600).encode(tooltip=alt.value(None), text=alt.Text(f"{metric}:Q", format=".3f"))
@@ -184,7 +193,7 @@ def heatmap(r: pd.DataFrame, metric: str, title: str, lower_better: bool):
     if lower_better:
         d["score"] = (1 - d["score"]).where(span.notna(), 0.7)
     d["label"] = d[metric].map(lambda v: f"{v:.2f}" if abs(v) >= 0.1 else f"{v:.3f}")
-    order = [theme.tr(a) for a in theme.APPLIANCES if theme.tr(a) in set(d["Cihaz"])] or sorted(d["Cihaz"].unique())
+    order = [theme.tr(a) for a in theme.ordered(d["appliance"].unique())]
     models = sorted(d["model"].unique())
     x = alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False, orient="top"))
     y = alt.Y("model:N", sort=models, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=260, ticks=False, domain=False))
@@ -207,8 +216,8 @@ def model_bars(r: pd.DataFrame, metric: str, title: str):
     colors = [theme.mcolor(m) for m in models]
     d = r.groupby(["appliance", "model"], as_index=False)[metric].mean()
     d["Cihaz"] = d["appliance"].map(theme.tr)
-    order = [theme.tr(a) for a in theme.APPLIANCES if theme.tr(a) in set(d["Cihaz"])] or sorted(d["Cihaz"].unique())
-    ch = alt.Chart(d).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4, size=26).encode(
+    order = [theme.tr(a) for a in theme.ordered(d["appliance"].unique())]
+    ch = alt.Chart(d).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
         x=alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelLimit=140, ticks=False, domain=False)),
         xOffset=alt.XOffset("model:N"),
         y=alt.Y(f"{metric}:Q", title=title, axis=alt.Axis(tickCount=5)),
@@ -300,18 +309,20 @@ def stacked_multi(bills: dict):
         for a, v in bill[col].items():
             v = float(v)
             rows.append(dict(Seri=seri, Cihaz=theme.tr(a), TL=round(v, 2), Pay=round(v / total * 100, 1), start=start, end=start + v,
-                             mid=start + v / 2, label=f"{v:,.0f}" if v / total >= 0.08 else ""))
+                             mid=start + v / 2))
             start += v
     d = pd.DataFrame(rows)
     order = list(bills)
     x = alt.X("Seri:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=13, labelColor=theme.INK, ticks=False, domain=False,
                                                              labelPadding=8, labelLimit=170))
-    bar = alt.Chart(d).mark_bar(size=min(110, 620 // max(1, len(order))), cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
-        x=x, y=alt.Y("start:Q", title="Fatura (TL)", axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
+    ymax = float(d["end"].max()) * 1.04 or 1.0
+    bar = alt.Chart(d).mark_bar(width={"band": 0.62}, cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
+        x=x, y=alt.Y("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, ymax], nice=False), axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N", title="Sütun"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
                  alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
-    txt = alt.Chart(d).mark_text(color="white", fontWeight=600, fontSize=12, font=FONT).encode(tooltip=alt.value(None), x=x, y="mid:Q", text="label:N")
+    txt = (alt.Chart(d).transform_calculate(label=f"(datum.end - datum.start) / {ymax} * height >= 16 ? format(datum.TL, ',.0f') : ''")
+           .mark_text(color="white", fontWeight=600, fontSize=12, font=FONT).encode(tooltip=alt.value(None), x=x, y="mid:Q", text="label:N"))
     return _style((bar + txt).properties(height=390))
 
 
@@ -320,7 +331,7 @@ def scorecard(d: pd.DataFrame):
     d: sütunlar Ölçüt, Model, Skor (0-100)."""
     models = sorted(d["Model"].unique())
     order = list(dict.fromkeys(d["Ölçüt"]))
-    ch = alt.Chart(d).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5, size=30).encode(
+    ch = alt.Chart(d).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
         x=alt.X("Ölçüt:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=13, labelColor=theme.INK, labelLimit=170, ticks=False, domain=False)),
         xOffset=alt.XOffset("Model:N", sort=models),
         y=alt.Y("Skor:Q", title="En iyi modele göre başarı (%)", scale=alt.Scale(domain=[0, 105]), axis=alt.Axis(tickCount=5, values=[0, 25, 50, 75, 100])),

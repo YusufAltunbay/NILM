@@ -86,7 +86,7 @@ if not bills["Gerçek"].empty:
 
 # ---- 5. aynı ana bakış
 theme.section("En hareketli 6 saat")
-devs = [a for a in theme.APPLIANCES if a in set(pred.loc[pred["house"] == house, "appliance"].unique())]
+devs = theme.ordered(pred.loc[pred["house"] == house, "appliance"].unique())
 
 
 @st.fragment

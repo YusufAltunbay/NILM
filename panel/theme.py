@@ -1,5 +1,6 @@
 """Panelin görünümü: renkler, CSS ve ortak bileşenler."""
 import html
+import zlib
 
 import pandas as pd
 import streamlit as st
@@ -16,7 +17,7 @@ APPLIANCES = {
     "dish washer": ("Bulaşık makinesi", "#12B5A6"),
     "microwave": ("Mikrodalga", "#F0507A"),
 }
-_FALLBACK = ["#64748B", "#A16207", "#0F766E", "#9D174D"]
+_FALLBACK = ["#64748B", "#A16207", "#0F766E", "#9D174D", "#4F46E5", "#BE185D", "#15803D", "#B45309"]
 # Model renkleri cihaz renklerinden (mavi, mor, turuncu, turkuaz, pembe) ayrışsın diye ayrı bir set.
 MODEL_COLORS = ["#E11D48", "#16A34A", "#0891B2", "#CA8A04", "#9333EA", "#0E1B2E"]
 EMOJI = {"fridge": "\U0001F7E6", "washing machine": "\U0001F7EA", "kettle": "\U0001F7E7",
@@ -30,7 +31,7 @@ def register_models(models):
 
 
 def mcolor(model: str) -> str:
-    i = _MODELS.index(model) if model in _MODELS else abs(hash(model))
+    i = _MODELS.index(model) if model in _MODELS else zlib.crc32(model.encode())
     return MODEL_COLORS[i % len(MODEL_COLORS)]
 
 
@@ -42,18 +43,16 @@ def tr(appliance: str) -> str:
     return APPLIANCES.get(appliance, (appliance.capitalize(), ""))[0]
 
 
-_SHORT = {"fridge": "Buzdolabı", "washing machine": "Çamaşır", "kettle": "Su ısıt.", "dish washer": "Bulaşık", "microwave": "Mikrodalga"}
-
-
-def short(appliance: str) -> str:
-    """Dar dilimlere sığan kısa ad."""
-    return _SHORT.get(appliance, tr(appliance)[:8])
+def ordered(appliances):
+    """Bilinen cihazlar tanımlı sırayla, yeni gelenler (veride olup burada tanımsız) alfabetik sırayla sonda."""
+    present = set(appliances)
+    return [a for a in APPLIANCES if a in present] + sorted(a for a in present if a not in APPLIANCES)
 
 
 def color(appliance: str) -> str:
     if appliance in APPLIANCES:
         return APPLIANCES[appliance][1]
-    return _FALLBACK[hash(appliance) % len(_FALLBACK)]
+    return _FALLBACK[zlib.crc32(appliance.encode()) % len(_FALLBACK)]
 
 
 def palette(appliances):

@@ -187,7 +187,8 @@ def _bill(model: str, house: int, price: float) -> pd.DataFrame:
     dt = config.SAMPLE_PERIOD_S
     sub = pred[(pred["model"] == model) & (pred["house"] == house)]
     rows = []
-    for a in config.APPLIANCES:
+    from panel import theme
+    for a in theme.ordered(sub["appliance"].unique()):
         g = sub[sub["appliance"] == a]
         if g.empty:
             continue

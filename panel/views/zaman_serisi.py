@@ -16,7 +16,7 @@ if sub.empty:
     st.error("Bu ev için veri yok.")
     st.stop()
 
-devs = [a for a in theme.APPLIANCES if a in set(sub["appliance"].unique())] or sorted(sub["appliance"].unique())
+devs = theme.ordered(sub["appliance"].unique())
 WINDOWS = {"1 saat": pd.Timedelta(hours=1), "6 saat": pd.Timedelta(hours=6), "1 gün": pd.Timedelta(days=1),
            "3 gün": pd.Timedelta(days=3), "Tümü": None}
 

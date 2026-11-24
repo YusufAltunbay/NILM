@@ -27,15 +27,22 @@ def download():
     part = OUT.with_suffix(".h5.part")
     start = part.stat().st_size if part.exists() else 0
     req = urllib.request.Request(URL, headers={"Range": f"bytes={start}-"} if start else {})
-    with urllib.request.urlopen(req) as r, part.open("ab" if start else "wb") as f:
-        total = start + int(r.headers.get("Content-Length", 0))
-        done = start
-        while b := r.read(1 << 20):
-            f.write(b)
-            done += len(b)
-            if done % (100 << 20) < (1 << 20):
-                print(f"{done / 1e9:.2f} / {total / 1e9:.2f} GB", flush=True)
+    with urllib.request.urlopen(req, timeout=60) as r:
+        if start and r.status != 206:  # sunucu devam desteklemiyorsa baştan indir
+            start = 0
+        with part.open("ab" if start else "wb") as f:
+            _copy(r, f, start)
     part.replace(OUT)
+
+
+def _copy(r, f, start):
+    total = start + int(r.headers.get("Content-Length", 0))
+    done = start
+    while b := r.read(1 << 20):
+        f.write(b)
+        done += len(b)
+        if done % (100 << 20) < (1 << 20):
+            print(f"{done / 1e9:.2f} / {total / 1e9:.2f} GB", flush=True)
 
 
 if __name__ == "__main__":

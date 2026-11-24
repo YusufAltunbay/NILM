@@ -23,7 +23,7 @@ def load():
         res = report.load(RESULTS) if Path(RESULTS).exists() else _results_from(pred)
         return pred, res, False
     from scripts import run_eval, synthetic
-    df = synthetic.make()
+    df = synthetic.make(n=6000, n_test=200000)  # test evi ~14 gün
     res = run_eval.run(df, "synthetic", list(run_eval.MODELS), log=False, save_preds=False)
     res["kind"] = res["dataset"].str.extract(r"\((\w+)\)$")[0]
     # demo tahminleri bellekte üret
@@ -58,10 +58,11 @@ def _results_from(pred: pd.DataFrame) -> pd.DataFrame:
 
 def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
     """Ortak kenar çubuğu: model, ev, birim fiyat. -> (model, house, price)."""
+    from panel import theme
     with st.sidebar:
-        st.header("Ayarlar")
+        st.subheader("Görünüm")
         if demo:
-            st.warning("Demo modu: sahte veri. Gerçek sonuçlar için `python -m scripts.run_eval --data ...` çalıştırın.")
+            theme.demo_note()
         models = sorted(pred["model"].unique())
         model = st.selectbox("Model", models)
         houses = sorted(pred["house"].unique())
@@ -69,6 +70,7 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
             houses = [h for h in houses if h in houses_only] or houses
         house = st.selectbox("Ev", houses)
         price = st.number_input("Birim fiyat (TL/kWh)", 0.0, 50.0, float(config.TL_PER_KWH), 0.1)
+        theme.sidebar_footer()
     return model, int(house), float(price)
 
 

@@ -4,33 +4,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
 
-from panel import data
-
-st.title("Cihaz bazlı tüketim ve fatura")
-st.caption("Tek sayaçtan (toplam güç) cihaz bazında tüketimi tahmin eder, faturayı cihazlara böler.")
+from panel import charts, data, theme
 
 pred, res, demo = data.load()
 model, house, price = data.sidebar(pred, demo)
 bill = data.bill_table(pred, model, house, price)
+
+theme.page_header("Faturanın cihazlara dağılımı",
+                  "Tek bir ana sayaçtan okunan toplam güç, yapay zeka ile cihazlara bölünür. "
+                  "Aşağıda tahmin edilen fatura, gerçek faturayla karşılaştırılıyor.",
+                  chips=[f"Ev {house}", f"Model: {model}", f"{price:.2f} TL/kWh"], demo=demo)
 if bill.empty:
-    st.error("Bu model ve ev için veri yok.")
+    st.error("Bu model ve ev için veri yok. Kenar çubuğundan başka bir seçim yapın.")
     st.stop()
 
-c1, c2, c3, c4 = st.columns(4)
-real, est = bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum()
-c1.metric("Gerçek toplam (TL)", f"{real:.2f}")
-c2.metric("Tahmin toplam (TL)", f"{est:.2f}")
-c3.metric("Toplam fark (TL)", f"{est - real:+.2f}")
-c4.metric("Cihaz bazlı hata (TL)", f"{bill['Hata (TL)'].sum():.2f}",
-          help="Her cihazın faturasındaki mutlak hataların toplamı. Fark eksi/artı birbirini götürür, bu götürmez.")
+theme.bill_strip(bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum(),
+                 bill["Gerçek (kWh)"].sum(), bill["Tahmin (kWh)"].sum())
 
-left, right = st.columns(2)
-with left:
-    st.subheader("Fatura: gerçek ve tahmin (TL)")
-    st.bar_chart(bill[["Gerçek (TL)", "Tahmin (TL)"]])
-with right:
-    st.subheader("Tüketim: gerçek ve tahmin (kWh)")
-    st.bar_chart(bill[["Gerçek (kWh)", "Tahmin (kWh)"]])
+theme.section("Fatura şeridi", "Üst çubuk gerçek faturayı, alt çubuk modelin tahminini gösterir. "
+                               "Dilimler aynı ölçekte olduğu için farklar doğrudan görülür.")
+theme.legend(list(bill.index))
+st.altair_chart(charts.ribbon(bill), width="stretch")
 
-st.subheader("Ayrıntı")
-st.dataframe(bill.round(3), width="stretch")
+theme.section("Fatura kalemleri", "Mutlak hata, her cihazın faturasındaki sapmadır. Eksi ve artı hatalar birbirini götürmez.")
+theme.ledger(bill)

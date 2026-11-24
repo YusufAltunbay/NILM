@@ -5,27 +5,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import streamlit as st
 
 from nilm.eval import report
-from panel import data
-
-st.title("Model karşılaştırma")
+from panel import charts, data, theme
 
 pred, res, demo = data.load()
-if demo:
-    st.warning("Demo modu: sahte veri.")
+theme.page_header("Model karşılaştırma",
+                  "Aynı test verisinde modellerin hata ve doğruluk ölçütleri. MAE, SAE ve fatura hatasında düşük, F1'de yüksek değer iyidir.",
+                  demo=demo)
 
 kinds = sorted(res["kind"].dropna().unique())
-kind = st.radio("Test evleri", kinds, horizontal=True,
-                format_func=lambda k: {"test": "Test", "unseen": "Hiç görülmeyen ev"}.get(k, k))
+labels = {"test": "Test evleri", "unseen": "Hiç görülmeyen ev"}
+c1, c2 = st.columns([1, 1])
+with c1:
+    kind = st.segmented_control("Veri", kinds, default=kinds[0], format_func=lambda k: labels.get(k, k)) or kinds[0]
+with c2:
+    metric = st.selectbox("Ölçüt", list(report.METRICS), format_func=report.METRICS.get)
 r = res[res["kind"] == kind]
 
-metric = st.selectbox("Metrik", list(report.METRICS), format_func=report.METRICS.get)
-st.bar_chart(r.pivot_table(index="appliance", columns="model", values=metric, aggfunc="mean"))
+theme.section("Cihaz bazında", report.METRICS[metric])
+st.altair_chart(charts.model_bars(r, metric, report.METRICS[metric]), width="stretch")
 
-st.subheader("Model özeti (cihazlar üzerinden ortalama)")
+theme.section("Model özeti", "Cihazlar üzerinden ortalama.")
 cols = list(report.METRICS) + ["predict_ms"]
-ozet = r.groupby("model")[cols].mean().rename(columns={
-    "mae": "MAE (W)", "sae": "SAE", "f1": "F1", "tl_error": "Fatura hatası (TL)", "predict_ms": "Tahmin süresi (ms)"})
-st.dataframe(ozet.round(3), width="stretch")
-
-st.subheader("Cihaz bazında tüm sonuçlar")
-st.dataframe(report.summary(r).round(3), width="stretch", hide_index=True)
+ozet = r.groupby("model")[cols].mean().reset_index().rename(columns={"model": "Model"})
+st.dataframe(ozet, width="stretch", hide_index=True, column_config={
+    "mae": st.column_config.NumberColumn("MAE (W)", format="%.2f"),
+    "sae": st.column_config.NumberColumn("SAE", format="%.3f"),
+    "f1": st.column_config.ProgressColumn("F1", min_value=0.0, max_value=1.0, format="%.2f"),
+    "tl_error": st.column_config.NumberColumn("Fatura hatası (TL)", format="%.3f"),
+    "predict_ms": st.column_config.NumberColumn("Tahmin süresi (ms)", format="%.2f"),
+})

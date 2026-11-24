@@ -26,13 +26,15 @@ def _appliance_signal(rng, n, power, duty, mean_len):
     return np.clip(sig, 0, None)
 
 
-def make(houses=(1, 2, 3, 4, 5), n=20000, seed=0):
+def make(houses=(1, 2, 3, 4, 5), n=20000, seed=0, n_test=None):
+    """n_test verilirse eğitimde olmayan evler n_test örnek uzunluğunda üretilir (demo için daha uzun dönem)."""
     rng = np.random.default_rng(seed)
-    ts = pd.date_range("2024-01-01", periods=n, freq=f"{config.SAMPLE_PERIOD_S}s", tz="UTC")
     frames = []
     for h in houses:
-        sigs = {a: _appliance_signal(rng, n, *_PROFILES[a]) for a in config.APPLIANCES}
-        base = 80 + 40 * rng.random() + 20 * rng.standard_normal(n).clip(-2, 2)
+        n_h = n_test if (n_test and h not in config.TRAIN_HOUSES) else n
+        ts = pd.date_range("2024-01-01", periods=n_h, freq=f"{config.SAMPLE_PERIOD_S}s", tz="UTC")
+        sigs = {a: _appliance_signal(rng, n_h, *_PROFILES[a]) for a in config.APPLIANCES}
+        base = 80 + 40 * rng.random() + 20 * rng.standard_normal(n_h).clip(-2, 2)
         agg = base.clip(0) + sum(sigs.values())
         for a, s in sigs.items():
             frames.append(pd.DataFrame({"timestamp": ts, "house": h, "appliance": a,

@@ -37,3 +37,9 @@ def test_run_eval_writes_predictions(tmp_path, monkeypatch):
     assert len(out) == 5                       # 5 cihaz x test evi 2
     assert set(pred["house"]) == {2}           # yalnızca test evi yazılır
     assert len(pred) == 5 * 500
+
+
+def test_synthetic_n_test_makes_unseen_house_longer():
+    df = synthetic.make(n=300, n_test=900)
+    sizes = df.groupby("house").size() / 5  # 5 cihaz
+    assert sizes[2] == 900 and sizes[1] == 300

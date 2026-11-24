@@ -6,27 +6,35 @@ import streamlit as st
 
 from nilm import config
 from nilm.eval import report
-from panel import data
-
-st.title("Hiç görülmeyen ev sonuçları")
-st.caption(f"Modelin eğitimde hiç görmediği ev(ler): {config.UNSEEN_HOUSES}. "
-           "Genelleme başarısını bu sonuçlar gösterir.")
+from panel import charts, data, theme
 
 pred, res, demo = data.load()
-if demo:
-    st.warning("Demo modu: sahte veri.")
+model, house, price = data.sidebar(pred, demo, houses_only=config.UNSEEN_HOUSES)
+house_txt = ", ".join(str(h) for h in config.UNSEEN_HOUSES)
+
+theme.page_header("Hiç görülmeyen evde başarı",
+                  f"Model ev {house_txt} verisini eğitimde hiç görmedi. Yeni bir eve ne kadar iyi uyum sağladığını bu sonuçlar gösterir.",
+                  chips=[f"Ev {house}", f"Model: {model}"], demo=demo)
 
 r = res[res["kind"] == "unseen"]
 if r.empty:
-    st.info("Henüz görülmeyen ev sonucu yok.")
+    st.info("Henüz görülmeyen ev sonucu yok. `python -m scripts.run_eval` ile üretilir.")
     st.stop()
 
-metric = st.selectbox("Metrik", list(report.METRICS), format_func=report.METRICS.get)
-st.bar_chart(r.pivot_table(index="appliance", columns="model", values=metric, aggfunc="mean"))
-
-st.subheader("Fatura doğruluğu")
-model, house, price = data.sidebar(pred, demo, houses_only=config.UNSEEN_HOUSES)
 bill = data.bill_table(pred, model, house, price)
 if not bill.empty:
-    st.bar_chart(bill[["Gerçek (TL)", "Tahmin (TL)"]])
-    st.dataframe(bill.round(3), width="stretch")
+    theme.bill_strip(bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum(),
+                     bill["Gerçek (kWh)"].sum(), bill["Tahmin (kWh)"].sum())
+    theme.section("Fatura şeridi")
+    theme.legend(list(bill.index))
+    st.altair_chart(charts.ribbon(bill), width="stretch")
+
+theme.section("Ölçütler")
+metric = st.selectbox("Ölçüt", list(report.METRICS), format_func=report.METRICS.get)
+st.altair_chart(charts.model_bars(r, metric, report.METRICS[metric]), width="stretch")
+
+if "test" in set(res["kind"]):
+    theme.section("Görülen ve görülmeyen evler", "Aradaki fark modelin ne kadar genelleştiğini gösterir.")
+    cmp = res.pivot_table(index="model", columns="kind", values=metric, aggfunc="mean")
+    cmp.columns = [{"test": "Test evleri", "unseen": "Görülmeyen ev"}.get(c, c) for c in cmp.columns]
+    st.dataframe(cmp.reset_index().rename(columns={"model": "Model"}), width="stretch", hide_index=True)

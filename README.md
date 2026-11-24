@@ -18,6 +18,7 @@ Yalnızca açık veri seti (UK-DALE) kullanılır; kendi evimizde ölçüm yapı
 python -m scripts.download_ukdale   # data/raw/ukdale.h5
 python -m scripts.inspect_ukdale    # evler, cihazlar, tarih aralıkları
 python -m scripts.prepare_ukdale    # data/processed/{cihaz}.h5 + örnek CSV
+python -m scripts.veri_sekilleri    # rapor şekilleri -> results/figures/veri/ (6 PNG)
 ```
 
 ## Model eğitimi için veri (Ersin)

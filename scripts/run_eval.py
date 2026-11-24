@@ -15,10 +15,12 @@ from nilm.data.schema import validate
 from nilm.eval.evaluate import evaluate
 from nilm.eval import results
 from nilm.models.base import MeanModel
+from nilm.models.baseline import ThresholdModel
 
 # ad -> model üreten fonksiyon. Ersin'in modelleri hazır olunca buraya eklenecek.
 MODELS = {
     "mean": MeanModel,
+    "threshold": ThresholdModel,
 }
 
 

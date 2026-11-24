@@ -20,11 +20,25 @@ if bill.empty:
 
 theme.bill_strip(bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum(),
                  bill["Gerçek (kWh)"].sum(), bill["Tahmin (kWh)"].sum())
+theme.callout(theme.summary_sentence(bill))
 
-theme.section("Fatura şeridi", "Üst çubuk gerçek faturayı, alt çubuk modelin tahminini gösterir. "
-                               "Dilimler aynı ölçekte olduğu için farklar doğrudan görülür.")
-theme.legend(list(bill.index))
-st.altair_chart(charts.ribbon(bill), width="stretch")
+theme.section("Faturanın dağılımı", "Aynı veriyi üç farklı biçimde görebilirsiniz.")
+view = st.segmented_control("Görünüm", ["Şerit", "Halka", "Çubuk"], default="Şerit", label_visibility="collapsed") or "Şerit"
+if view == "Şerit":
+    st.caption("Üst çubuk gerçek faturayı, alt çubuk tahmini gösterir. Dilimler aynı ölçekte olduğu için farklar doğrudan görülür.")
+    theme.legend(list(bill.index))
+    st.altair_chart(charts.ribbon(bill), width="stretch")
+elif view == "Halka":
+    st.caption("Her halka, faturanın cihazlar arasındaki payını gösterir. Ortadaki sayı toplam tutardır (TL).")
+    theme.legend(list(bill.index))
+    st.altair_chart(charts.donut(bill), width="stretch")
+else:
+    st.caption("Her cihaz için gerçek (açık gri) ve tahmin edilen (lacivert) fatura yan yana.")
+    st.altair_chart(charts.bars(bill), width="stretch")
 
 theme.section("Fatura kalemleri", "Mutlak hata, her cihazın faturasındaki sapmadır. Eksi ve artı hatalar birbirini götürmez.")
 theme.ledger(bill)
+out = bill.rename_axis("Cihaz").reset_index()
+out["Cihaz"] = out["Cihaz"].map(theme.tr)
+st.download_button("Tabloyu indir (CSV)", out.round(4).to_csv(index=False).encode("utf-8-sig"),
+                   file_name=f"fatura_ev{house}_{model}.csv", mime="text/csv")

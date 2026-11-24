@@ -39,13 +39,15 @@ def ribbon(bill: pd.DataFrame):
     return _style((bars + text).properties(height=190))
 
 
-def series(df: pd.DataFrame, appliance: str, show_aggregate: bool):
+def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.DataFrame | None = None):
     """Gerçek (dolgulu alan) ve tahmin (kesikli çizgi) zaman serisi; üzerine gelince değerleri gösterir."""
     c = theme.color(appliance)
     x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%d.%m %H:%M", grid=False))
     y = alt.Y("Gerçek:Q", title="Güç (W)")
     nearest = alt.selection_point(fields=["timestamp"], nearest=True, on="mouseover", empty=False, clear="mouseout")
     layers = []
+    if bands is not None and not bands.empty:
+        layers.append(alt.Chart(bands).mark_rect(color=c, opacity=0.09).encode(x=alt.X("start:T"), x2="end:T"))
     if show_aggregate:
         layers.append(alt.Chart(df).mark_line(color="#B6C2D3", strokeWidth=1.2).encode(x=x, y=alt.Y("Toplam:Q", title="Güç (W)")))
     layers.append(alt.Chart(df).mark_area(color=c, opacity=0.28, line={"color": c, "strokeWidth": 1.6}).encode(x=x, y=y))
@@ -70,3 +72,57 @@ def model_bars(r: pd.DataFrame, metric: str, title: str):
         color=alt.Color("model:N", scale=alt.Scale(domain=models, range=colors), title="Model"),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
     return _style(ch.properties(height=330))
+
+
+def donut(bill: pd.DataFrame):
+    """İki halka: gerçek ve tahmin faturası; ortada toplam tutar."""
+    names, colors = theme.palette(list(bill.index))
+    w, h = 330, 290
+    parts = []
+    for title, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+        d = pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "TL": bill[col].round(2).to_numpy()})
+        total = d["TL"].sum()
+        d["Pay"] = (d["TL"] / max(total, 1e-9) * 100).round(1)
+        arc = alt.Chart(d).mark_arc(innerRadius=88, outerRadius=138, stroke="#FFFFFF", strokeWidth=2).encode(
+            theta=alt.Theta("TL:Q", stack=True),
+            color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+            tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"), alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
+        big = alt.Chart(pd.DataFrame({"t": [f"{total:,.0f}"]})).mark_text(
+            fontSize=34, fontWeight=700, color=theme.INK, font="Bricolage Grotesque, " + FONT, align="center", baseline="middle").encode(
+            text="t:N", x=alt.value(w / 2), y=alt.value(h / 2 - 10))
+        small = alt.Chart(pd.DataFrame({"t": ["TL"]})).mark_text(
+            fontSize=13, color=theme.MUTED, font=FONT, align="center", baseline="middle").encode(
+            text="t:N", x=alt.value(w / 2), y=alt.value(h / 2 + 22))
+        parts.append(alt.layer(arc, big, small).properties(
+            width=w, height=h, title=alt.TitleParams(title, anchor="middle", fontSize=14, font=FONT, color=theme.INK, fontWeight=600)))
+    return _style(alt.hconcat(*parts, spacing=70))
+
+
+def bars(bill: pd.DataFrame):
+    """Cihaz bazında gerçek ve tahmin fatura çubukları (yatay, yan yana)."""
+    d = pd.concat([
+        pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "Seri": "Gerçek", "TL": bill["Gerçek (TL)"].round(2).to_numpy()}),
+        pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "Seri": "Tahmin", "TL": bill["Tahmin (TL)"].round(2).to_numpy()})])
+    order = [theme.tr(a) for a in bill.index]
+    base = alt.Chart(d).encode(
+        y=alt.Y("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=180, ticks=False, domain=False)),
+        yOffset=alt.YOffset("Seri:N", sort=["Gerçek", "Tahmin"]),
+        x=alt.X("TL:Q", title="Fatura (TL)", axis=alt.Axis(grid=True, format=",.0f", tickCount=6)))
+    bar = base.mark_bar(cornerRadiusEnd=3, size=16).encode(
+        color=alt.Color("Seri:N", scale=alt.Scale(domain=["Gerçek", "Tahmin"], range=["#B6C2D3", theme.INK]), title=None),
+        tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("Seri:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)")])
+    txt = base.mark_text(align="left", dx=6, fontSize=12, font=FONT, color=theme.MUTED).encode(text=alt.Text("TL:Q", format=",.1f"))
+    return _style((bar + txt).properties(height=max(220, 70 * len(order))))
+
+
+def residual(df: pd.DataFrame):
+    """Hata = tahmin - gerçek. Artı (fazla tahmin) kehribar, eksi (eksik tahmin) mavi."""
+    x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%d.%m %H:%M", grid=False))
+    d = df.assign(Hata=df["Tahmin"] - df["Gerçek"])
+    tips = [alt.Tooltip("timestamp:T", format="%d.%m %H:%M:%S", title="Zaman"), alt.Tooltip("Hata:Q", format="+.0f", title="Hata (W)")]
+    pos = alt.Chart(d).transform_calculate(v="datum.Hata > 0 ? datum.Hata : 0").mark_area(color="#F59E0B", opacity=0.75).encode(
+        x=x, y=alt.Y("v:Q", title="Hata (W)"), tooltip=tips)
+    neg = alt.Chart(d).transform_calculate(v="datum.Hata < 0 ? datum.Hata : 0").mark_area(color="#2F80ED", opacity=0.75).encode(
+        x=x, y=alt.Y("v:Q", title="Hata (W)"))
+    zero = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(color="#94A3B8").encode(y="y:Q")
+    return _style((pos + neg + zero).properties(height=150))

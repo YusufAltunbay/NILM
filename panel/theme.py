@@ -82,6 +82,12 @@ table.ledger {{ width: 100%; border-collapse: collapse; background: #fff; border
 
 [data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ background: #fff; border: 1px solid {LINE}; border-radius: 8px; padding: 14px 10px 6px 10px; overflow: hidden; }}
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 8px; overflow: hidden; }}
+img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !important; max-width: 100% !important; }}
+[data-testid="stSidebarHeader"] {{ height: auto !important; padding: 1.4rem 1rem .6rem 1.1rem !important; }}
+.callout {{ border-left: 3px solid #12B5A6; background: #fff; padding: 12px 18px; color: #27405F; margin: .9rem 0 .2rem 0; max-width: 84ch; line-height: 1.55; }}
+.callout b {{ color: {INK}; font-weight: 600; }}
+.ledger .share {{ display: inline-block; height: 7px; border-radius: 4px; margin-right: 8px; vertical-align: middle; }}
+.strip .num.sm {{ font-size: 1.9rem; }}
 @media (max-width: 720px) {{ .nilm-title {{ font-size: 1.7rem; }} .strip .num {{ font-size: 2rem; }} }}
 </style>
 """
@@ -106,33 +112,66 @@ def legend(appliances):
     st.markdown(f'<div class="legend">{items}</div>', unsafe_allow_html=True)
 
 
+def strip(cells):
+    """Tek bantta birkaç büyük rakam. cells: dict(lab, num, unit='', sub='', tone='', small=False)."""
+    out = ""
+    for c in cells:
+        unit = f"<small>{html.escape(c.get('unit', ''))}</small>" if c.get("unit") else ""
+        cls = " ".join(x for x in ("num", c.get("tone", ""), "sm" if c.get("small") else "") if x)
+        out += (f'<div class="cell"><div class="lab">{html.escape(c["lab"])}</div>'
+                f'<div class="{cls}">{c["num"]}{unit}</div><div class="sub">{html.escape(c.get("sub", ""))}</div></div>')
+    st.markdown(f'<div class="strip">{out}</div>', unsafe_allow_html=True)
+
+
 def bill_strip(real_tl, pred_tl, real_kwh, pred_kwh):
     diff = pred_tl - real_tl
     pct = (diff / real_tl * 100) if real_tl else 0.0
     tone = "ok" if abs(pct) < 5 else ("over" if diff > 0 else "under")
     word = "fazla tahmin" if diff > 0 else "eksik tahmin"
-    st.markdown(f"""
-<div class="strip">
-  <div class="cell"><div class="lab">Gerçek fatura</div><div class="num">{real_tl:,.2f}<small>TL</small></div><div class="sub">{real_kwh:,.2f} kWh</div></div>
-  <div class="cell"><div class="lab">Tahmin edilen fatura</div><div class="num">{pred_tl:,.2f}<small>TL</small></div><div class="sub">{pred_kwh:,.2f} kWh</div></div>
-  <div class="cell"><div class="lab">Fark</div><div class="num {tone}">{diff:+,.2f}<small>TL</small></div><div class="sub">%{abs(pct):.1f} {word}</div></div>
-</div>""", unsafe_allow_html=True)
+    strip([dict(lab="Gerçek fatura", num=f"{real_tl:,.2f}", unit="TL", sub=f"{real_kwh:,.2f} kWh"),
+           dict(lab="Tahmin edilen fatura", num=f"{pred_tl:,.2f}", unit="TL", sub=f"{pred_kwh:,.2f} kWh"),
+           dict(lab="Fark", num=f"{diff:+,.2f}", unit="TL", sub=f"%{abs(pct):.1f} {word}", tone=tone)])
+
+
+def callout(text_html: str):
+    """Kısa özet cümlesi; text_html içinde <b> kullanılabilir (kullanıcı verisi değil, kod üretir)."""
+    st.markdown(f'<div class="callout">{text_html}</div>', unsafe_allow_html=True)
+
+
+def summary_sentence(bill: pd.DataFrame) -> str:
+    """Fatura tablosundan otomatik özet cümlesi (sunumda anlatılacak ana mesaj)."""
+    real, pred = bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum()
+    pct = (pred - real) / real * 100 if real else 0.0
+    signed = bill["Tahmin (TL)"] - bill["Gerçek (TL)"]
+    worst = signed.abs().idxmax()
+    rel = (signed.abs() / bill["Gerçek (TL)"].clip(lower=1e-9))
+    best = rel.idxmin()
+    way = "fazla" if pct > 0 else "eksik"
+    if abs(pct) < 0.05:
+        head = "Model toplam faturayı neredeyse tam tahmin ediyor."
+    else:
+        head = f"Model toplam faturayı <b>%{abs(pct):.1f} {way}</b> tahmin ediyor."
+    return (f"{head} En büyük sapma <b>{html.escape(tr(worst))}</b> kaleminde ({signed[worst]:+.2f} TL), "
+            f"en yakın tahmin <b>{html.escape(tr(best))}</b> kaleminde (%{rel[best] * 100:.1f} sapma).")
 
 
 def ledger(bill: pd.DataFrame):
     """Makbuz tarzı fatura kalemleri tablosu. bill: index=cihaz, bill_table sütunları."""
     peak = max(bill["Hata (TL)"].max(), 1e-9)
+    total_real = max(bill["Gerçek (TL)"].sum(), 1e-9)
     rows = ""
     for a, r in bill.iterrows():
         w = max(2, int(r["Hata (TL)"] / peak * 60))
+        share = r["Gerçek (TL)"] / total_real * 100
         rows += (f'<tr><td><span class="dot" style="background:{color(a)}"></span>{html.escape(tr(a))}</td>'
+                 f'<td><span class="share" style="width:{max(2, int(share * 1.6))}px;background:{color(a)}"></span>%{share:.1f}</td>'
                  f'<td>{r["Gerçek (kWh)"]:,.2f}</td><td>{r["Gerçek (TL)"]:,.2f}</td><td>{r["Tahmin (TL)"]:,.2f}</td>'
                  f'<td><span class="errbar" style="width:{w}px"></span>{r["Hata (TL)"]:,.2f}</td></tr>')
     t = bill.sum(numeric_only=True)
-    foot = (f'<tr><td>Toplam</td><td>{t["Gerçek (kWh)"]:,.2f}</td><td>{t["Gerçek (TL)"]:,.2f}</td>'
+    foot = (f'<tr><td>Toplam</td><td>%100</td><td>{t["Gerçek (kWh)"]:,.2f}</td><td>{t["Gerçek (TL)"]:,.2f}</td>'
             f'<td>{t["Tahmin (TL)"]:,.2f}</td><td>{t["Hata (TL)"]:,.2f}</td></tr>')
     st.markdown(f"""
-<table class="ledger"><thead><tr><th>Cihaz</th><th>Gerçek tüketim (kWh)</th><th>Gerçek (TL)</th><th>Tahmin (TL)</th><th>Mutlak hata (TL)</th></tr></thead>
+<table class="ledger"><thead><tr><th>Cihaz</th><th>Fatura payı</th><th>Gerçek tüketim (kWh)</th><th>Gerçek (TL)</th><th>Tahmin (TL)</th><th>Mutlak hata (TL)</th></tr></thead>
 <tbody>{rows}</tbody><tfoot>{foot}</tfoot></table>""", unsafe_allow_html=True)
 
 

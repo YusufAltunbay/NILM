@@ -99,6 +99,7 @@ Yeni model, `scripts/run_eval.py` içindeki `MODELS` sözlüğüne eklenince de�
 
 Panel gerçek ve tahmin zaman serisini göstereceği için her deneyin tahminleri de kaydedilir:
 `results/predictions/{model}__{cihaz}__house{n}.h5` (key `data`), sütunlar `timestamp, aggregate_w, appliance_w, pred_w` (W). Satır sayısı test verisiyle aynıdır (`predict` aynı uzunlukta dönmek zorunda; pencere kenarlarını 0 ile doldur).
+Panel için `predictions.load_all(models=…, appliances=…, houses=…)` bu dosyaları sütunları `timestamp, house, appliance, aggregate_w, appliance_w, predicted_w, model` olan uzun bir tabloda birleştirir (`to_frame` aynı biçimi tek bir test verisi için üretir). Süzgeç verilirse yalnızca istenen dosyalar okunur: tek ev ve cihaz 1.7 M satır için ~1.6 sn, bir modelin tamamı (17.7 M satır) ~3 sn ve ~1 GB bellek.
 Üretmek için: `python -m scripts.run_eval --data data/processed --save-preds`. Kaydetme `evaluate(..., save_preds=True)` ile yapılır, model tarafında ek bir şey gerekmez.
 
 ## 6. Sistem mimarisi

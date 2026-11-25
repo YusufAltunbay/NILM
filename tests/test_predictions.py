@@ -33,3 +33,25 @@ def test_evaluate_saves_predictions(tmp_path, monkeypatch):
     df = _test_df()
     evaluate(MeanModel().fit(df), df, "t", "fridge", log=False, save_preds=True)
     assert (tmp_path / "mean__fridge__house2.h5").exists()
+
+
+def test_load_all_long_format_and_filters(tmp_path):
+    a, b = _test_df(house=2), _test_df(house=5)
+    b["appliance"] = "dish washer"
+    predictions.save("m1", "fridge", 2, a, np.full(len(a), 7.0), root=tmp_path)
+    predictions.save("m1", "dish washer", 5, b, np.full(len(b), 9.0), root=tmp_path)
+    predictions.save("m2", "fridge", 2, a, np.full(len(a), 1.0), root=tmp_path)
+    assert predictions.available(tmp_path) == [("m1", "dish washer", 5), ("m1", "fridge", 2), ("m2", "fridge", 2)]
+    allp = predictions.load_all(tmp_path)
+    assert list(allp.columns) == predictions.COLUMNS + ["model"] and len(allp) == 150
+    one = predictions.load_all(tmp_path, models=["m1"], appliances=["dish washer"], houses=[5])
+    assert set(one.model) == {"m1"} and set(one.appliance) == {"dish washer"} and (one.predicted_w == 9.0).all()
+    assert predictions.load_all(tmp_path / "yok").empty
+
+
+def test_to_frame():
+    df = _test_df()
+    f = predictions.to_frame(df, np.arange(len(df)))
+    assert list(f.columns) == predictions.COLUMNS and f.predicted_w.iloc[3] == 3
+    with pytest.raises(ValueError):
+        predictions.to_frame(df, np.zeros(3))

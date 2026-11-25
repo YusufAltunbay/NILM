@@ -32,6 +32,12 @@ watts = norm.y_inverse(pred)   # tahmini Watt'a çevirir
 Pencereler eğitim sırasında kesilir (bellek ~0.1 GB; hepsini tutan `prep.windows` ev 1'de ~25 GB ister).
 `stride=10` eğitimi hızlandırır; val/test için `val_stride` ile seyreltilebilir.
 
+## seq2point modeli yazarken (Ersin)
+`nilm/models/windowed.py` içindeki `WindowedModel`'den türet; yalnızca `fit` ve `predict_batch` yaz. `predict`
+hazır: giriş dizisini kenarlardan genişletip her örnek için bir pencere üretir, çıktıyı girişle aynı
+uzunlukta ve hizalı verir (değerlendirme bunu şart koşar). Eğitimde `nilm.data.dataset.WindowDataset`,
+çıkarımda `predict_batch` aynı pencereleri görür (testle doğrulandı).
+
 ## Dallar
 `main` korumalı; herkes `yusuf/...`, `ersin/...`, `kamil/...` dallarında çalışır, PR ile birleştirir.
 

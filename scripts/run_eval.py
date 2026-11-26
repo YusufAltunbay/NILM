@@ -17,11 +17,13 @@ from nilm.data.schema import validate
 from nilm.eval.evaluate import evaluate
 from nilm.eval import results
 from nilm.models.base import MeanModel
+from nilm.models.baseline import ThresholdModel
 from nilm.models.seq2point import Seq2Point
 
-# ad -> model üreten fonksiyon. Ersin'in modelleri hazır olunca buraya eklenecek.
+# ad -> model üreten fonksiyon. BERT4NILM hazır olunca buraya eklenecek.
 MODELS = {
     "mean": MeanModel,
+    "threshold": ThresholdModel,
     "seq2point": Seq2Point,
 }
 

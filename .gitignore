@@ -5,4 +5,6 @@ data/processed/
 __pycache__/
 .venv/
 .ipynb_checkpoints/
-results/
+results/*
+!results/results.csv
+!results/experiments.csv

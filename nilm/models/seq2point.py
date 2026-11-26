@@ -1,0 +1,168 @@
+"""seq2point (Zhang vd., AAAI 2018): 599 adımlık toplam güç penceresi -> ortadaki cihaz gücü.
+
+Mimari: 5 x Conv1D (30/30/40/50/50 filtre, çekirdek 10/8/6/5/5) -> Dense(1024) -> Dense(1).
+Veri: nilm.data.dataset.WindowDataset (pencere __getitem__ yerine GPU'da toplu kesilir).
+Çıkarım: nilm.models.windowed.WindowedModel (kenar dolgusu, kırpma, aynı uzunluk).
+"""
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn
+
+from nilm import config
+from nilm.data.dataset import WindowDataset
+from nilm.models.torch_utils import EarlyStopping, gather_windows, get_device, seed_everything
+from nilm.models.windowed import WindowedModel
+
+CKPT_DIR = Path(__file__).resolve().parents[2] / "models_ckpt"  # *.pt git dışı
+
+
+class Seq2PointNet(nn.Module):
+    def __init__(self, window=599, dropout=0.2, hidden=1024, center=False):
+        super().__init__()
+        self.center = center  # her pencereden kendi medyanını çıkar (taban yük farkına dayanıklılık)
+        chans, kernels, layers, c_in = [30, 30, 40, 50, 50], [10, 8, 6, 5, 5], [], 1
+        for c, k in zip(chans, kernels):
+            layers += [nn.Conv1d(c_in, c, k, padding="same"), nn.ReLU()]
+            c_in = c
+        self.conv = nn.Sequential(*layers)
+        self.head = nn.Sequential(nn.Flatten(), nn.Linear(c_in * window, hidden), nn.ReLU(),
+                                  nn.Dropout(dropout), nn.Linear(hidden, 1))
+
+    def forward(self, x):  # x: (B, window)
+        if self.center:
+            x = x - x.median(dim=1, keepdim=True).values
+        return self.head(self.conv(x.unsqueeze(1))).squeeze(-1)
+
+
+class Seq2Point(WindowedModel):
+    name = "seq2point"
+
+    def __init__(self, window=599, stride=20, lr=3e-4, train_batch=256, dropout=0.2,
+                 hidden=1024, weight_decay=0.0, center=True, on_frac=0.35, epochs=30, patience=3,
+                 seed=0, verbose=True):
+        """Varsayılanlar, buzdolabı deneylerinde (ev 5 ile seçildi, 3 seed) belirlenen ayardır.
+        stride: epoch büyüklüğü = tüm pencerelerin 1/stride'ı (hız; pencereler atılmaz, her epoch'ta
+        yeniden çekilir, böylece kısa olaylı cihazların tüm açık pencereleri kullanılır).
+        on_frac: epoch'taki AÇIK pencere oranı (None = doğal dağılım). Doğrulama kaybı patience epoch iyileşmezse durur."""
+        self.window, self.stride, self.lr, self.train_batch = window, stride, lr, train_batch
+        self.dropout, self.on_frac, self.epochs = dropout, on_frac, epochs
+        self.hidden, self.weight_decay, self.center = hidden, weight_decay, center
+        self.patience, self.seed, self.verbose = patience, seed, verbose
+        self.device = get_device()
+        self.amp = self.device.type == "cuda"  # karma hassasiyet: ~%35 daha hızlı
+        self.net: Seq2PointNet | None = None
+        self.history: list[dict] = []
+
+    # -- eğitim ---------------------------------------------------------------------------
+    def fit(self, train, val=None):
+        seed_everything(self.seed)
+        app = train["appliance"].iloc[0]
+        norm = self.fit_normalizer(train)
+        tr = WindowDataset(train, norm, self.window, stride=1)  # tüm pencereler: pozitifler seyreltilmez
+        if len(tr) == 0:
+            raise ValueError(f"{app}: eğitimde {self.window} adımlık pencere yok")
+        dev, w = self.device, self.window
+        agg, y_all, starts = tr.agg.to(dev), tr.app.to(dev), torch.from_numpy(tr.starts).to(dev)
+        thr = config.ON_THRESHOLD_W.get(app, config.DEFAULT_ON_THRESHOLD_W) / norm.app_max
+        use_val = val is not None and len(val) > 0
+        if use_val:
+            va = WindowDataset(val, norm, self.window, stride=5)
+            v_agg, v_app, v_starts = va.agg.to(dev), va.app.to(dev), torch.from_numpy(va.starts).to(dev)
+            on_ratio = float((v_app[v_starts + w // 2] > thr).float().mean()) if len(v_starts) else 0.0
+            if on_ratio < 1e-3:  # doğrulama evinde cihaz neredeyse hiç açılmamış: kayıp anlamsız
+                if self.verbose:
+                    print(f"[{app}] doğrulama evinde açık oranı %{100 * on_ratio:.2f}: "
+                          "erken durdurma için eğitim verisinden blok ayırılıyor", flush=True)
+                use_val = False
+        if not use_val:  # her 10 bloğun 1'i ayrılır, kenarlardan w pencere atılır
+            pos = torch.arange(len(starts), device=dev)
+            bs = max(2 * w, min(20_000, len(starts) // 20))  # blok boyutu (pencere)
+            blk, r = pos // bs, pos % bs
+            is_val = blk % 10 == 9
+            guard = ((blk % 10 == 8) & (r >= bs - w)) | ((blk % 10 == 0) & (blk > 0) & (r < w))
+            v_agg, v_app, v_starts = agg, y_all, starts[is_val][::5]
+            starts = starts[~is_val & ~guard]
+        if len(v_starts) == 0:
+            raise ValueError(f"{app}: doğrulama penceresi yok")
+
+        ar = torch.arange(w, device=dev)
+        is_on = y_all[starts + w // 2] > thr
+        on_idx, off_idx = torch.nonzero(is_on).squeeze(1), torch.nonzero(~is_on).squeeze(1)
+        balanced = bool(self.on_frac) and len(on_idx) > 0 and len(off_idx) > 0
+        # epoch büyüklüğü: tüm pencerelerin 1/stride'ı (hız); her epoch'ta yeniden rastgele çekilir
+        n = max(self.train_batch, len(starts) // self.stride)
+
+        def draw() -> torch.Tensor:
+            if not balanced:
+                return torch.randint(len(starts), (n,), device=dev)
+            k_on = int(round(self.on_frac * n))
+            idx = torch.cat([on_idx[torch.randint(len(on_idx), (k_on,), device=dev)],
+                             off_idx[torch.randint(len(off_idx), (n - k_on,), device=dev)]])
+            return idx[torch.randperm(len(idx), device=dev)]
+
+        self.net = Seq2PointNet(w, self.dropout, self.hidden, self.center).to(dev)
+        opt = torch.optim.AdamW(self.net.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        scaler = torch.amp.GradScaler(enabled=self.amp)
+        stopper, loss_fn = EarlyStopping(self.patience), nn.MSELoss()
+        steps = (n + self.train_batch - 1) // self.train_batch
+        for ep in range(1, self.epochs + 1):
+            t0 = time.perf_counter()
+            self.net.train()
+            order = draw()
+            tot = 0.0
+            for i in range(0, n, self.train_batch):
+                x, y = gather_windows(agg, y_all, starts, order[i:i + self.train_batch], w, ar)
+                with torch.autocast(dev.type, dtype=torch.float16, enabled=self.amp):
+                    loss = loss_fn(self.net(x).float(), y)
+                opt.zero_grad(set_to_none=True)
+                scaler.scale(loss).backward()
+                scaler.step(opt)
+                scaler.update()
+                tot += loss.item() * len(x)
+                k = i // self.train_batch + 1
+                if self.verbose and k % max(1, steps // 4) == 0 and k < steps:
+                    print(f"[{app}]   epoch {ep:02d} %{100 * k // steps} "
+                          f"(loss {tot / (i + len(x)):.5f})", flush=True)
+            v_loss = self._val_loss(v_agg, v_app, v_starts, ar)
+            self.history.append(dict(epoch=ep, train_loss=tot / n, val_loss=v_loss,
+                                     sec=time.perf_counter() - t0))
+            if self.verbose:
+                print(f"[{app}] epoch {ep:02d} train {tot / n:.5f} val {v_loss:.5f} "
+                      f"({self.history[-1]['sec']:.0f} sn)", flush=True)
+            if stopper.step(v_loss, self.net):
+                break
+        stopper.restore(self.net)
+        self.net.eval()
+        self.appliance_ = app
+        return self
+
+    @torch.no_grad()
+    def _val_loss(self, agg, app, starts, ar, batch=2048) -> float:
+        self.net.eval()
+        tot = 0.0
+        for i in range(0, len(starts), batch):
+            idx = torch.arange(i, min(i + batch, len(starts)), device=agg.device)
+            x, y = gather_windows(agg, app, starts, idx, self.window, ar)
+            with torch.autocast(self.device.type, dtype=torch.float16, enabled=self.amp):
+                out = self.net(x).float()
+            tot += ((out - y) ** 2).sum().item()
+        return tot / len(starts)
+
+    # -- çıkarım --------------------------------------------------------------------------
+    @torch.no_grad()
+    def predict_batch(self, x: np.ndarray) -> np.ndarray:
+        self.net.eval()
+        with torch.autocast(self.device.type, dtype=torch.float16, enabled=self.amp):
+            out = self.net(torch.from_numpy(x).to(self.device))
+        return out.float().cpu().numpy()
+
+    # -- ağırlıklar -----------------------------------------------------------------------
+    def save(self, path: Path | None = None) -> Path:
+        path = Path(path or CKPT_DIR / f"{self.name}__{self.appliance_.replace(' ', '_')}.pt")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({"state": self.net.state_dict(), "norm": vars(self.norm), "window": self.window,
+                    "dropout": self.dropout, "hidden": self.hidden, "center": self.center, "seed": self.seed, "history": self.history}, path)
+        return path

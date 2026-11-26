@@ -7,6 +7,7 @@ Kullanım:
 Modeller MODELS sözlüğüne eklenir (Ersin'in seq2point / BERT4NILM sınıfları buraya girer).
 """
 import argparse
+import inspect
 from pathlib import Path
 
 import pandas as pd
@@ -16,10 +17,12 @@ from nilm.data.schema import validate
 from nilm.eval.evaluate import evaluate
 from nilm.eval import results
 from nilm.models.base import MeanModel
+from nilm.models.seq2point import Seq2Point
 
 # ad -> model üreten fonksiyon. Ersin'in modelleri hazır olunca buraya eklenecek.
 MODELS = {
     "mean": MeanModel,
+    "seq2point": Seq2Point,
 }
 
 
@@ -48,7 +51,14 @@ def run(df, source, model_names, log=True, save_preds=False):
             print(f"[uyarı] {appliance}: eğitim verisi yok, atlandı")
             continue
         for name in model_names:
-            model = MODELS[name]().fit(train)
+            model = MODELS[name]()
+            if "val" in inspect.signature(model.fit).parameters:  # erken durdurma için ev 5
+                val = sub[sub["house"].isin(config.VAL_HOUSES)]
+                model.fit(train, val if len(val) else None)
+            else:
+                model.fit(train)
+            if hasattr(model, "save"):  # eğitilmiş ağırlıklar (models_ckpt/*.pt, git dışı)
+                print(f"[{appliance}] ağırlıklar -> {model.save()}")
             for h in test_houses:
                 test = sub[sub["house"] == h]
                 if test.empty:

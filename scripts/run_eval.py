@@ -57,6 +57,8 @@ def run(df, source, model_names, log=True, save_preds=False):
                 model.fit(train, val if len(val) else None)
             else:
                 model.fit(train)
+            if hasattr(model, "save"):  # eğitilmiş ağırlıklar (models_ckpt/*.pt, git dışı)
+                print(f"[{appliance}] ağırlıklar -> {model.save()}")
             for h in test_houses:
                 test = sub[sub["house"] == h]
                 if test.empty:

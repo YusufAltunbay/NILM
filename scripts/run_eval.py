@@ -3,9 +3,11 @@
 Kullanım:
   python -m scripts.run_eval --synthetic            # sahte veriyle deneme
   python -m scripts.run_eval --data data/processed/fridge.h5
+  python -m scripts.run_eval --data data/processed --save-preds   # tüm cihazlar, tahminleri de kaydet
 Modeller MODELS sözlüğüne eklenir (Ersin'in seq2point / BERT4NILM sınıfları buraya girer).
 """
 import argparse
+import inspect
 from pathlib import Path
 
 import pandas as pd
@@ -16,11 +18,13 @@ from nilm.eval.evaluate import evaluate
 from nilm.eval import results
 from nilm.models.base import MeanModel
 from nilm.models.baseline import ThresholdModel
+from nilm.models.seq2point import Seq2Point
 
-# ad -> model üreten fonksiyon. Ersin'in modelleri hazır olunca buraya eklenecek.
+# ad -> model üreten fonksiyon. BERT4NILM hazır olunca buraya eklenecek.
 MODELS = {
     "mean": MeanModel,
     "threshold": ThresholdModel,
+    "seq2point": Seq2Point,
 }
 
 
@@ -30,13 +34,16 @@ def load(args) -> tuple[pd.DataFrame, str]:
         return synthetic.make(), "synthetic"
     path = Path(args.data)
     readers = {".parquet": pd.read_parquet, ".h5": lambda p: pd.read_hdf(p, "data")}
+    if path.is_dir():  # data/processed: cihaz başına bir .h5 (örnek CSV'ler atlanır)
+        df = pd.concat([readers[".h5"](f) for f in sorted(path.glob("*.h5"))], ignore_index=True)
+        return validate(df), path.name
     df = readers.get(path.suffix, pd.read_csv)(path)
     return validate(df), path.stem
 
 
-def run(df, source, model_names, log=True):
+def run(df, source, model_names, log=True, save_preds=False):
     rows = []
-    # VAL_HOUSES şu an TRAIN_HOUSES'un içinde; eğitimde olmayan evler test edilir.
+    # Eğitimde olmayan evler değerlendirilir: doğrulama evi ("val") ve hiç görülmeyen ev ("unseen").
     test_houses = [h for h in sorted(df["house"].unique())
                    if h not in config.TRAIN_HOUSES or h in config.UNSEEN_HOUSES]
     for appliance in config.APPLIANCES:
@@ -46,28 +53,38 @@ def run(df, source, model_names, log=True):
             print(f"[uyarı] {appliance}: eğitim verisi yok, atlandı")
             continue
         for name in model_names:
-            model = MODELS[name]().fit(train)
+            model = MODELS[name]()
+            if "val" in inspect.signature(model.fit).parameters:  # erken durdurma için ev 5
+                val = sub[sub["house"].isin(config.VAL_HOUSES)]
+                model.fit(train, val if len(val) else None)
+            else:
+                model.fit(train)
+            if hasattr(model, "save"):  # eğitilmiş ağırlıklar (models_ckpt/*.pt, git dışı)
+                print(f"[{appliance}] ağırlıklar -> {model.save()}")
             for h in test_houses:
                 test = sub[sub["house"] == h]
                 if test.empty:
                     continue
-                kind = "unseen" if h in config.UNSEEN_HOUSES else "test"
-                rows.append(evaluate(model, test, f"{source}:house{h}({kind})", appliance, log=log))
+                kind = "unseen" if h in config.UNSEEN_HOUSES else "val"
+                rows.append(evaluate(model, test, f"{source}:house{h}({kind})", appliance,
+                                     log=log, save_preds=save_preds))
     return pd.DataFrame(rows)
 
 
 def main():
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--data", help="şemaya uygun .parquet/.csv")
+    g.add_argument("--data", help="şemaya uygun .parquet/.csv/.h5 dosyası ya da data/processed klasörü")
     g.add_argument("--synthetic", action="store_true")
     ap.add_argument("--models", nargs="+", default=list(MODELS), choices=list(MODELS))
+    ap.add_argument("--save-preds", action="store_true",
+                    help="tahminleri results/predictions/ altına kaydet (panel için)")
     ap.add_argument("--fresh", action="store_true", help="results.csv'yi sıfırdan yaz")
     args = ap.parse_args()
     if args.fresh and results.RESULTS.exists():
         results.RESULTS.unlink()
     df, source = load(args)
-    out = run(df, source, args.models)
+    out = run(df, source, args.models, save_preds=args.save_preds)
     print(out.round(3).to_string(index=False))
     print(f"\n{len(out)} satır -> {results.RESULTS}")
 

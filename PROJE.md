@@ -54,6 +54,21 @@ Rapor: Yusuf → veri ve değerlendirme, Ersin → modeller, Kamil → panel ve 
 - ⚠️ Ev 4'te çamaşır makinesi ve mikrodalga **aynı sayaçta**; hangisinin çektiği ayrılamadığı için ikisi de bu evde kullanılmaz.
 - Sonuç: su ısıtıcısı dışındaki dört cihaz için eğitim fiilen **yalnızca ev 1** ile yapılır (en uzun kayıt). Seçilen 5 cihaz literatürdeki standart UK-DALE kurulumuyla aynı; liste bu hâliyle kalabilir.
 
+### Cihaz seçimi gerekçesi (`scripts/cihaz_siralama.py`)
+
+UK-DALE'de 62 cihaz tipi var; hepsinin evin toplam enerjisindeki payı hesaplandı (ev 1, 2, 5; seyrek kayıt alan sayaçlarda kayıt olmayan anlar "kapalı" sayıldı). Eğitim, doğrulama ve test evlerinin **üçünde de** ölçülen ve sayacı başka cihazla paylaşılmayan cihazlar:
+
+| Cihaz | Ev 1 | Ev 2 | Ev 5 | Not |
+|---|---|---|---|---|
+| Buzdolabı (+ buzdolabı-dondurucu) | 11.2 | 14.9 | 5.7 | |
+| Bulaşık makinesi | 4.3 | 14.2 | 2.4 | |
+| Çamaşır makinesi (+ çamaşır-kurutma) | 7.3 | 3.8 | 5.8 | |
+| Su ısıtıcısı | 3.6 | 9.4 | 1.8 | Ev 1'de sayaç sandviç makinesiyle ortak |
+| Bilgisayar monitörü | 1.3 | 6.7 | 1.1 | Düşük güç, bazı evlerde seyrek kayıt |
+| Mikrodalga | 2.1 | 2.1 | 0.1 | Ev 5 ham sayaçta %6.6 görünür; sabit 50 W ofset (Bölüm 7) |
+
+Değerler cihaz enerjisinin evin toplam enerjisine oranıdır (%). Seçilen 5 cihaz ev 1'de %28, ev 2'de %44, ev 5'te %16 pay kapsar; kalan "diğer"dir ve panelde ayrı bir kalem olarak gösterilmelidir. Aydınlatma yalnızca ev 1'de ayrı ölçülür (15 sayaç, tüm kayıtta %13.8, yaz aylarında %5.4); ev 4'ün "lamba" sayacı televizyon ve DVD ile ortaktır, bu yüzden aydınlatma görülmeyen evde test edilemez. Evlerin ikisinde birden bulunan diğer cihazlar (televizyon, masaüstü bilgisayar, dizüstü) test evi eksik olduğu için aynı ayrımla değerlendirilemez.
+
 ### Ev ayrımı
 
 | Küme | Evler | Amaç |
@@ -95,6 +110,13 @@ Yeni model, `scripts/run_eval.py` içindeki `MODELS` sözlüğüne eklenince de�
 
 `model, dataset, appliance, mae, sae, f1, tl_error, predict_ms` — her deney bir satır. `nilm/eval/results.py` yazar, `nilm/eval/report.py` özet ve grafik üretir, panel okur.
 
+### 5.4 Tahmin dosyaları — `nilm/eval/predictions.py`
+
+Panel gerçek ve tahmin zaman serisini göstereceği için her deneyin tahminleri de kaydedilir:
+`results/predictions/{model}__{cihaz}__house{n}.h5` (key `data`), sütunlar `timestamp, aggregate_w, appliance_w, pred_w` (W). Satır sayısı test verisiyle aynıdır (`predict` aynı uzunlukta dönmek zorunda; pencere kenarlarını 0 ile doldur).
+Panel için `predictions.load_all(models=…, appliances=…, houses=…)` bu dosyaları sütunları `timestamp, house, appliance, aggregate_w, appliance_w, predicted_w, model` olan uzun bir tabloda birleştirir (`to_frame` aynı biçimi tek bir test verisi için üretir). Süzgeç verilirse yalnızca istenen dosyalar okunur: tek ev ve cihaz 1.7 M satır için ~1.6 sn, bir modelin tamamı (17.7 M satır) ~3 sn ve ~1 GB bellek.
+Üretmek için: `python -m scripts.run_eval --data data/processed --save-preds`. Kaydetme `evaluate(..., save_preds=True)` ile yapılır, model tarafında ek bir şey gerekmez.
+
 ## 6. Sistem mimarisi
 
 ```
@@ -120,7 +142,8 @@ ukdale.h5 ──► ukdale.load() ──► prep.clean() ──► data/processe
    - **Bekleme eşiği (`config.STANDBY_W`):** mikrodalgada 100 W altı 0 sayılır. Ev 5 mikrodalga sayacı Temmuz 2014'ten itibaren zamanın %90'ında sabit 50 W gösteriyor (gerçek kullanım günde ~0.4 kez, ~1.3 kW).
 3. **Ev bazlı ayırma (`split_by_house`).**
 4. **Normalizasyon (`Normalizer`):** toplam güç z-skor ile, cihaz gücü eğitimdeki maksimuma bölünerek ölçeklenir. İstatistikler **yalnızca eğitim verisinden** öğrenilir; `y_inverse` tahmini Watt'a geri çevirir.
-5. **Pencereleme (`windows`):** seq2point için 599 adımlık (~1 saat) pencere; hedef pencerenin ortasındaki cihaz gücü. Pencereler ev/cihaz sınırlarını ve atılan zaman boşluklarını aşmaz.
+5. **Pencereleme (`windows`, `WindowDataset`):** küçük veride `prep.windows`, gerçek eğitimde bellek dostu `nilm/data/dataset.py` (`make_datasets`) kullanılır; ikisi birebir aynı pencereleri üretir.
+   Pencere ayrıntısı: seq2point için 599 adımlık (~1 saat) pencere; hedef pencerenin ortasındaki cihaz gücü. Pencereler ev/cihaz sınırlarını ve atılan zaman boşluklarını aşmaz.
 
 ## 8. Modeller
 
@@ -230,7 +253,7 @@ streamlit run panel/app.py
 - [x] Ev ayrımı — eğitim 1 (+3, 4 su ısıtıcısı için), doğrulama 5, test 2
 - [x] ~~TL/kWh birim fiyatı~~ → 3.24 TL (Nisan 2026 mesken tarifesi, Kamil)
 - [ ] Cihaz bazlı açık/kapalı eşiklerinin doğrulanması
-- [ ] Tahmin çıktı dosyalarının biçimi (panel için)
+- [x] Tahmin çıktı dosyalarının biçimi — Bölüm 5.4 (Ersin ve Kamil onaylayacak)
 
 ## 17. Riskler ve yedek planlar
 

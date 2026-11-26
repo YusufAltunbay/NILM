@@ -51,10 +51,11 @@ class Bert4NilmNet(nn.Module):
 class Bert4Nilm(NILMModel):
     name = "bert4nilm"
 
-    def __init__(self, window=481, hidden=64, layers=2, heads=2, dropout=0.1, lr=3e-4, train_batch=64,
+    def __init__(self, window=481, hidden=128, layers=3, heads=4, dropout=0.3, lr=3e-4, train_batch=64,
                  on_frac=0.35, cover=2.0, hop=None, weight_decay=0.0, center=True, epochs=30,
                  patience=3, seed=0, verbose=True):
-        """window tek sayı olmalı (WindowDataset kuralı). cover: bir epoch'ta her sinyal noktası ortalama
+        """Varsayılanlar buzdolabı deneylerinde (ev 5 ile seçildi, seed 0) belirlendi: hidden 128, 3 katman,
+        4 baş, dropout 0.3. window tek sayı olmalı (WindowDataset kuralı). cover: bir epoch'ta her sinyal noktası ortalama
         kaç pencerede görülür (epoch büyüklüğü = cover x sinyal uzunluğu / window). on_frac: epoch'taki,
         içinde AÇIK nokta bulunan pencerelerin oranı. hop: çıkarımda pencere kaydırma (varsayılan window//4)."""
         self.window, self.hidden, self.layers, self.heads, self.dropout = window, hidden, layers, heads, dropout

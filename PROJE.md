@@ -271,9 +271,24 @@ Kaynak: `results/results.csv` (`python -m scripts.run_eval --data data/processed
 - **Seq2point ile bert4nilm:** bert4nilm yalnızca mikrodalgada (MAE ve TL, iki evde de; ev 2'de MAE farkı çok küçük: 10.6 / 10.8) ve çamaşır makinesi ev 2'de MAE'de, bulaşık makinesi ev 5'te TL'de seq2point'ten iyi. Su ısıtıcısında çok geride; bulaşık makinesinde F1'i çok düşük (0.07–0.11). Olası neden (doğrulanmadı): girdinin 2 kat alt örneklenmesi 17 adımlık kısa olayları bulanıklaştırıyor; uzun döngüler için dikkat mekanizmasının avantajı bu ayarda görülmedi.
 - **TL hatasında** (tüm kayıt süresi) en iyi model 10 satırın 7'sinde mean, 3'ünde seq2point (çamaşır, su ısıtıcısı ve bulaşık makinesi, ev 2). Ev 5'te mean beş cihazın hepsinde önde. Seyrek açılan cihazlarda küçük sabit tahmin düşük enerji hatası verirken, modellerin yanlış alarmları (cihaz kapalıyken küçük güç tahmini) enerjiyi şişiriyor gibi görünüyor; bu açıklama doğrulanmadı. Kullanıcının gördüğü ölçek günlük/haftalık olduğu için ayrıca §15.2'ye bakın.
 - **Cihaz bazlı ayar** (`nilm/models/params.py`): seq2point mikrodalga ve bulaşık makinesinde `hidden=256` (küçük Dense başlık, yanlış alarmı azaltıyor), diğer cihazlarda `hidden=1024`. Mikrodalga ve bulaşıkta 3 seed'de de ev 5 MAE'si `hidden=1024`'ten düşük çıktı (mikrodalga 30.6 → 25.5 ± 1.2; bulaşık 24.6 → 22.7 ± 1.2, F1 0.18 → 0.27); çamaşır makinesinde `hidden=256` F1'i düşürdüğü için uygulanmadı. `hidden=1024` için seed çalıştırılmadı.
-- **Cihaz durumu:** su ısıtıcısında seq2point F1'de en iyisi (ev 2: 0.98, ev 5: 0.85), ama MAE ve TL hatası seed'e çok duyarlı olabilir (seed turu sürüyor, ayrıntı aşağıda). Mikrodalga ev 5'te hâlâ başarısız (mean MAE 8.0'a karşı 24.8; muhtemelen 1–2 kW'lık başka yükleri mikrodalga sanıyor, doğrulanmadı). Buzdolabı, çamaşır ve bulaşık makinesi ve mikrodalga yalnızca ev 1'den eğitilir (ev 3 ve 4'te yok).
+- **Cihaz durumu:** su ısıtıcısında seq2point F1'de en iyisi (ev 2: 0.98, ev 5: 0.85), ama MAE ve TL hatası seed'e çok duyarlı olabilir (seed turu sonuçları aşağıda). Mikrodalga ev 5'te hâlâ başarısız (mean MAE 8.0'a karşı 24.8; muhtemelen 1–2 kW'lık başka yükleri mikrodalga sanıyor, doğrulanmadı). Buzdolabı, çamaşır ve bulaşık makinesi ve mikrodalga yalnızca ev 1'den eğitilir (ev 3 ve 4'te yok).
 - **Boyut ve hız** (ortanca tahmin süresi, 1,7–2 milyon örnek, GPU): mean 8 ms, threshold 31 ms, **bert4nilm 2.6 sn** (709 bin parametre), **seq2point 62 sn** (30.7 milyon parametre; `hidden=256` ile 7.7 milyon). Bert4nilm yaklaşık 24 kat hızlı ve çok daha küçük, ama doğrulukta çoğu cihazda geride. Dikkat: seq2point mikrodalga ve bulaşık süreleri (70–77 sn) küçük ağa rağmen diğer cihazlardan uzun; büyük olasılıkla GPU'nun güç sınırına takıldığı bir sırada ölçüldü (doğrulanmadı), bu iki süreye temkinli bakılmalı.
-- **Seed:** resmi tablo seed 0. Buzdolabı (seq2point, 3 seed: ev 2 MAE 17.0 ± 0.6 W, F1 0.856 ± 0.005; SAE seed'e çok duyarlı), mikrodalga ve bulaşık (`hidden=256`, 3 seed) kararlı çıktı. Seed turu çamaşır makinesi ve su ısıtıcısı (seq2point) ile bert4nilm için sürüyor (`results/experiments.csv`, `seed-turu` notlu satırlar). Ön bulgu: çamaşır makinesinde MAE ve F1 kararlı, TL hatası seed'e duyarlı; su ısıtıcısında seed 1'de ev 2 MAE 21.5 W ve TL hatası 189, seed 0'dakinden (6.8 W, 9 TL) çok farklı. Bert4nilm ayarı (hidden 128, 3 katman, 4 baş, dropout 0.3) yalnızca buzdolabında ev 5'e bakılarak seçildi. Hiperparametre denemeleri `results/experiments.csv` içinde.
+- **Seed:** resmi tablo seed 0; her (model, cihaz) için 3 seed (0, 1, 2) çalıştırıldı, ortalama ± std (örnek std, ddof=1) `python -m scripts.seed_ozeti` ile üretilir (buzdolabı seq2point'in seed 1–2'si eski örnekleme düzeniyle koşuldu). Ev 2, 3 seed:
+
+| Cihaz | Model | MAE (W) | F1 | TL hatası |
+|---|---|---|---|---|
+| buzdolabı | seq2point | 16.8 ± 1.0 | 0.86 ± 0.02 | 79 |
+| buzdolabı | bert4nilm | 21.9 ± 3.6 | 0.70 ± 0.19 | 136 ± 46 |
+| çamaşır mak. | seq2point | 15.5 ± 0.4 | 0.34 ± 0.01 | 59 ± 32 |
+| çamaşır mak. | bert4nilm | 14.7 ± 3.7 | 0.31 ± 0.04 | 56 ± 67 |
+| su ısıtıcısı | seq2point | 11.5 ± 8.7 | 0.98 ± 0.00 | 68 ± 104 |
+| su ısıtıcısı | bert4nilm | 17.5 ± 9.5 | 0.74 ± 0.16 | 123 ± 34 |
+| bulaşık mak. | seq2point | 26.5 ± 2.7 | 0.31 ± 0.02 | 62 ± 44 |
+| bulaşık mak. | bert4nilm | 41.2 ± 6.5 | 0.09 ± 0.02 | 94 ± 66 |
+| mikrodalga | seq2point | 12.7 ± 1.7 | 0.46 ± 0.03 | 82 ± 14 |
+| mikrodalga | bert4nilm | 7.6 ± 2.9 | 0.58 ± 0.16 | 11 ± 16 |
+
+  Okuma: F1 çoğu cihazda kararlı (su ısıtıcısı seq2point 0.98 ± 0.00), ama **su ısıtıcısında MAE ve TL hatası seed'e çok duyarlı** (std ortalamaya yakın) ve TL hatasında std çoğu satırda büyük; tek seed'li TL sıralamaları bu yüzden temkinle okunmalı. Ev 5 değerleri `results/seed_ozeti.md` içinde (yerel çıktı). Bert4nilm ayarı (hidden 128, 3 katman, 4 baş, dropout 0.3) yalnızca buzdolabında ev 5'e bakılarak seçildi. Hiperparametre denemeleri `results/experiments.csv` içinde.
 - Seq2point cihaz başına ayrı ağdır (`NILMModel` arayüzü tek cihaz); 5 cihaz için 5 ağ eğitilir, bert4nilm de aynı şekilde.
 
 ### 15.2 Günlük ve haftalık enerji hatası
@@ -318,7 +333,7 @@ En iyi model sayısı (haftalık): {'mean': 7, 'seq2point': 3}
 - **Kullanımı değişken cihazlarda** (su ısıtıcısı, bulaşık ve çamaşır makinesi) seq2point ev 2'de günlük ölçekte mean'den belirgin iyi: su ısıtıcısı 0.12 / 1.14, bulaşık 1.05 / 2.35, çamaşır 0.42 / 1.60 TL/gün (seq2point / mean).
 - **Mean iki durumda önde:** buzdolabı (günlük enerjisi neredeyse sabit, ~1 kWh) ve mikrodalga (günlük 0.02–0.15 kWh, çok az kullanılıyor); sabit tahmin burada doğal olarak iyi.
 - **Dönem uzadıkça** (günlük → haftalık) mean'in payı artıyor (haftalıkta 7/10): olası neden, modellerin sistematik sapmalarının (yanlış alarm) birikmesine karşılık sabit ortalamanın uzun dönemde gerçek ortalamaya yaklaşması (doğrulanmadı).
-- Tek seed; su ısıtıcısında TL hatası seed'e çok duyarlı olabilir (bkz. §15.1, seed).
+- Bu tablolar tek seed (seed 0); TL hatası seed'e duyarlı olduğu için yakın sıralamalar kesin değil (bkz. §15.1, seed).
 
 ## 16. Açık kararlar
 

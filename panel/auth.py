@@ -230,8 +230,10 @@ def _hero(pred):
 
 def login_page():
     from panel import data, theme
-    theme.inject()
     st.markdown(_LOGIN_CSS, unsafe_allow_html=True)
+    if theme.MODE == "light":   # aydınlık görünümde form kartı beyaz (alanlar açık renkte olduğu için)
+        st.markdown("<style>.st-key-loginbox { background: #fff !important; border-color: #fff !important; backdrop-filter: none !important; }"
+                    ".st-key-loginbox h3 { color: #0E1B2E !important; }</style>", unsafe_allow_html=True)
     pred, _, _ = data.load()
     houses = sorted(int(h) for h in pred["house"].unique())
     home = next((h for h in data.config.UNSEEN_HOUSES if h in houses), houses[0])  # yeni hesaplara verilen örnek ev

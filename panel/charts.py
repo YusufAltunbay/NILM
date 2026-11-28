@@ -10,7 +10,7 @@ FONT = "Figtree, Segoe UI, system-ui, sans-serif"
 def _style(chart):
     return (chart.properties(padding={"left": 8, "right": 34, "top": 8, "bottom": 8}).configure(background=theme.SURFACE).configure_view(stroke=None)
             .configure_axis(labelFont=FONT, titleFont=FONT, labelColor=theme.MUTED, titleColor=theme.MUTED,
-                            gridColor=theme.GRID, domainColor="#2C4262", tickColor="#2C4262", labelFontSize=12, titleFontSize=12)
+                            gridColor=theme.GRID, domainColor=theme.LINE, tickColor=theme.LINE, labelFontSize=12, titleFontSize=12)
             .configure_legend(labelFont=FONT, titleFont=FONT, labelColor=theme.INK, titleColor=theme.MUTED, orient="top", symbolType="square"))
 
 
@@ -200,13 +200,13 @@ def heatmap(r: pd.DataFrame, metric: str, title: str, lower_better: bool):
     models = sorted(d["model"].unique())
     x = alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False, orient="top"))
     y = alt.Y("model:N", sort=models, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=260, ticks=False, domain=False))
-    scale = alt.Scale(domain=[0, 1], range=["#15304A", "#12B5A6"])
+    scale = alt.Scale(domain=[0, 1], range=["#15304A" if theme.MODE == "dark" else "#E4F5F2", "#12B5A6" if theme.MODE == "dark" else "#0B6B61"])
     rect = alt.Chart(d).mark_rect(stroke=theme.SURFACE, strokeWidth=3, cornerRadius=4).encode(
         x=x, y=y, color=alt.Color("score:Q", scale=scale, legend=None),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
     txt = alt.Chart(d).mark_text(fontSize=13, fontWeight=600, font=FONT).encode(tooltip=alt.value(None), 
         x=x, y=y, text="label:N",
-        color=alt.value("#FFFFFF"))
+        color=alt.value("#FFFFFF") if theme.MODE == "dark" else alt.condition(alt.datum.score > 0.5, alt.value("#FFFFFF"), alt.value(theme.INK)))
     layers = [rect, txt]
     if len(models) > 1:  # tek modelde "en iyi" çerçevesi anlamsız
         layers.insert(1, alt.Chart(d[d["best"]]).mark_rect(fill=None, stroke=theme.INK, strokeWidth=2.5, cornerRadius=4).encode(x=x, y=y))
@@ -231,7 +231,7 @@ def model_bars(r: pd.DataFrame, metric: str, title: str):
 
 _DASH = [[], [7, 3], [2, 3], [10, 3, 2, 3], [4, 4], [1, 4]]
 _AX_X = dict(format="%d.%m %H:%M", grid=False, tickCount=6, labelFontSize=11, domain=False, ticks=False)
-_AX_Y = dict(tickCount=5, gridColor=theme.GRID, gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)
+_AX_Y = dict(tickCount=5, gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)  # ızgara rengi _style içinde (moda göre)
 
 
 def _real_area(df, c, x, y):
@@ -371,10 +371,10 @@ def day_split(sayac: pd.DataFrame, parts: pd.DataFrame, height: int = 360):
     names, colors = theme.palette(order)
     d = parts.assign(Ad=parts["Cihaz"].map(theme.tr), sira=parts["Cihaz"].map({a: i for i, a in enumerate(order)}))
     x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%H:%M", tickCount=8, grid=False, labelColor=theme.MUTED))
-    top = alt.Chart(sayac).mark_area(line={"color": "#E8EEF6", "strokeWidth": 1.3}, interpolate="monotone",
+    top = alt.Chart(sayac).mark_area(line={"color": theme.INK, "strokeWidth": 1.3}, interpolate="monotone",
                                      color=alt.Gradient(gradient="linear", x1=1, x2=1, y1=1, y2=0,
-                                                        stops=[alt.GradientStop(color="rgba(232,238,246,0)", offset=0),
-                                                               alt.GradientStop(color="rgba(232,238,246,.28)", offset=1)])).encode(
+                                                        stops=[alt.GradientStop(color=_rgba(theme.INK, 0), offset=0),
+                                                               alt.GradientStop(color=_rgba(theme.INK, .22), offset=1)])).encode(
         x=x, y=alt.Y("W:Q", title="Sayaç (W)", axis=alt.Axis(tickCount=3, gridColor=theme.GRID)),
         tooltip=[alt.Tooltip("timestamp:T", format="%H:%M", title="Saat"), alt.Tooltip("W:Q", format=",.0f", title="Toplam (W)")]
     ).properties(height=120)
@@ -386,3 +386,21 @@ def day_split(sayac: pd.DataFrame, parts: pd.DataFrame, height: int = 360):
     ).properties(height=height)
     return _style(alt.vconcat(top, bottom, spacing=14).resolve_scale(x="shared"))
 
+
+
+def share_donut(tl: pd.Series, center_label: str = "TL / ay"):
+    """Tek halka (kullanıcının faturası, tahmini). tl: index=cihaz (ham ad), değer=TL. Sabit boyut: width='content' ile çizilir."""
+    names, colors = theme.palette(list(tl.index))
+    total = float(tl.sum())
+    d = pd.DataFrame({"Cihaz": [theme.tr(a) for a in tl.index], "TL": tl.round(2).to_numpy(), "sira": range(len(tl))})
+    d["Pay"] = (d["TL"] / max(total, 1e-9) * 100).round(1)
+    w = h = 280
+    arc = alt.Chart(d).mark_arc(innerRadius=82, outerRadius=126, stroke=theme.SURFACE, strokeWidth=3, cornerRadius=4).encode(
+        theta=alt.Theta("TL:Q", stack=True), order=alt.Order("sira:Q"),
+        color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+        tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.0f", title="Tutar (TL)"), alt.Tooltip("Pay:Q", format=".1f", title="Pay (%)")])
+    big = alt.Chart(pd.DataFrame({"t": [f"{total:,.0f}"]})).mark_text(fontSize=34, fontWeight=700, color=theme.INK,
+        font="Bricolage, " + FONT, align="center", baseline="middle").encode(text="t:N", x=alt.value(w / 2), y=alt.value(h / 2 - 10))
+    small = alt.Chart(pd.DataFrame({"t": [center_label]})).mark_text(fontSize=13, color=theme.MUTED, font=FONT, align="center",
+        baseline="middle").encode(text="t:N", x=alt.value(w / 2), y=alt.value(h / 2 + 24))
+    return _style(alt.layer(arc, big, small).properties(width=w, height=h))

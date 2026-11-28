@@ -9,6 +9,7 @@ NE VAR
   * Model karşılaştırma: genel sıralama, ölçüt karnesi, cihaz cihaz ölçütler (results.csv'den).
   * Tasarruf: kullanıcı kendi faturasını girer, cihaz payları örnek evden ölçeklenir, senaryo ve hedef planı.
   * Görülmeyen ev: yalnızca ev 2. Bu sayfa model değerlendirmesi için; yalnızca misafir girişinde görünür.
+* Görünüm: sol panelin üstündeki düğmeyle aydınlık / karanlık (seçim tarayıcıda saklanır).
 * Model adları: Ortalama modeli, Eşik modeli, seq2point (CNN), BERT4NILM (Transformer).
 * Ev 2 "görülmeyen", ev 5 "doğrulama" diye etiketli (Ersin'in notuna göre).
 * Kullanıcı hesabı veri setindeki örnek bir sayaca (ev 2) bağlanır; gerçek kullanımda bunun yerine kullanıcının kendi sayacı bağlanır. Kullanıcı görünümünde sayfalar bu sayaç için, "Benim faturam" ise kullanıcının girdiği faturaya göre.

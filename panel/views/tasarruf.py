@@ -16,7 +16,7 @@ if bill.empty:
     st.stop()
 
 house_tl = float(bill["Gerçek (TL)"].sum())  # örnek evin aylık sayaç faturası
-b1, b2 = st.columns([1, 2], vertical_alignment="center")
+b1, b2 = st.columns([1.3, 2], vertical_alignment="center")
 with b1:
     blocks.bill_form("ts_bill")
 my_bill = data.my_bill()

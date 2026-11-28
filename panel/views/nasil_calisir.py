@@ -29,7 +29,7 @@ def _spark(values, w=220, h=54):
     xs = np.linspace(0, w, len(v))
     pts = " ".join(f"{x:.1f},{h - 4 - y * (h - 8):.1f}" for x, y in zip(xs, v))
     return (f'<svg viewBox="0 0 {w} {h}" preserveAspectRatio="none"><polyline points="{pts}" fill="none" '
-            f'stroke="#E8EEF6" stroke-width="1.6" stroke-linejoin="round"/></svg>')
+            f'stroke="{theme.INK}" stroke-width="1.6" stroke-linejoin="round"/></svg>')
 
 
 one = sub[sub["appliance"] == apps[0]].sort_values("timestamp")

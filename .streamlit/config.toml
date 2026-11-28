@@ -1,12 +1,25 @@
-[theme]
-base = "dark"
+# İki görünüm: panelin sol üstündeki düğmeyle değişir (seçim tarayıcıda saklanır).
+[theme.dark]
 primaryColor = "#12B5A6"
 backgroundColor = "#0A1524"
 secondaryBackgroundColor = "#16273F"
 textColor = "#E8EEF6"
 borderColor = "#22344F"
 
-[theme.sidebar]
+[theme.dark.sidebar]
+backgroundColor = "#0E1B2E"
+secondaryBackgroundColor = "#17273F"
+textColor = "#E6ECF5"
+primaryColor = "#12B5A6"
+
+[theme.light]
+primaryColor = "#0E9C8F"
+backgroundColor = "#F3F5F9"
+secondaryBackgroundColor = "#E8EDF4"
+textColor = "#0E1B2E"
+borderColor = "#DDE3EC"
+
+[theme.light.sidebar]
 backgroundColor = "#0E1B2E"
 secondaryBackgroundColor = "#17273F"
 textColor = "#E6ECF5"

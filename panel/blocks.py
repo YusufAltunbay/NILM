@@ -125,7 +125,7 @@ def bill_form(key: str):
     k = f"{key}_in"
     st.session_state.setdefault(k, data.my_bill())
     with st.form(f"{key}_form", border=False, enter_to_submit=True):
-        f1, f2 = st.columns([2.2, 1], vertical_alignment="bottom")
+        f1, f2 = st.columns([1.7, 1], vertical_alignment="bottom")
         f1.number_input("Aylık elektrik faturan (TL)", 0.0, 100000.0, step=50.0, key=k,
                         help="Faturandaki toplam tutar. 0 bırakırsan örnek evin ölçümü gösterilir. Enter ya da Uygula.")
         f2.form_submit_button("Uygula", type="primary", icon=":material/bolt:", on_click=_save_bill, args=(k,), width="stretch")

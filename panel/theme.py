@@ -7,14 +7,39 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# Koyu tema (giriş ekranıyla aynı dünya)
-INK = "#E8EEF6"        # ana metin
-MUTED = "#8FA3BF"      # ikincil metin
-LINE = "#22344F"       # çizgi / kenar
-BG = "#0A1524"         # sayfa zemini
-SURFACE = "#111F33"    # kart zemini
-SURFACE2 = "#16273F"   # tablo başlığı, hover
-GRID = "#1E3049"       # grafik ızgarası
+# İki görünüm. Sol panel ve sayfa başlık bandı her iki modda da koyu kalır; değişen ana alan.
+PALETTES = {
+    "dark": dict(INK="#E8EEF6", MUTED="#8FA3BF", LINE="#22344F", BG="#0A1524", SURFACE="#111F33", SURFACE2="#16273F",
+                 GRID="#1E3049", SOFT="#C9D5E4", GLASS="rgba(255,255,255,.07)", GLASSLINE="rgba(255,255,255,.10)",
+                 DOTS="rgba(255,255,255,.05)", OK="#34D3BF", OVER="#FBBF24", UNDER="#7FB4FF", ACC="#5EE6D6", ACCBLUE="#9CC3FF",
+                 ERRBAR="#3A5070", SHADOW="0 22px 44px -28px rgba(0,0,0,.85)", GLOW1=".16", GLOW2=".12"),
+    "light": dict(INK="#0E1B2E", MUTED="#5B6B82", LINE="#DDE3EC", BG="#F3F5F9", SURFACE="#FFFFFF", SURFACE2="#F6F8FB",
+                  GRID="#E8EDF4", SOFT="#33445C", GLASS="#E9EEF5", GLASSLINE="#DCE3EC",
+                  DOTS="rgba(14,27,46,.05)", OK="#0F766E", OVER="#B45309", UNDER="#1D4ED8", ACC="#0B6B61", ACCBLUE="#1D4ED8",
+                  ERRBAR="#CBD5E3", SHADOW="0 1px 2px rgba(14,27,46,.05), 0 16px 32px -22px rgba(14,27,46,.30)", GLOW1=".10", GLOW2=".07"),
+}
+MODE = "dark"
+INK = MUTED = LINE = BG = SURFACE = SURFACE2 = GRID = SOFT = GLASS = GLASSLINE = DOTS = ""
+OK = OVER = UNDER = ACC = ACCBLUE = ERRBAR = SHADOW = GLOW1 = GLOW2 = ""
+
+
+def mode() -> str:
+    """Tarayıcıda seçili görünüm: 'light' ya da 'dark' (Streamlit temasından)."""
+    try:
+        t = st.context.theme.type
+    except Exception:
+        t = None
+    return t if t in PALETTES else "dark"
+
+
+def apply_mode(m: str | None = None):
+    """Renk değişkenlerini seçili moda göre ayarlar (grafikler ve CSS bunları okur)."""
+    global MODE
+    MODE = m or mode()
+    globals().update(PALETTES[MODE])
+
+
+apply_mode("dark")
 
 # Cihaz -> (Türkçe ad, renk). Yeni cihaz eklenirse buraya da eklenir.
 APPLIANCES = {
@@ -85,22 +110,25 @@ def _font_faces() -> str:
 
 
 DISPLAY = "'Bricolage', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif"
+_FONTS = _font_faces()
 
-_CSS = f"""
+def _css() -> str:
+    """Seçili moda (aydınlık/karanlık) göre CSS; renkler apply_mode ile güncellenen modül değişkenlerinden."""
+    return f"""
 <style>
-{_font_faces()}
+{_FONTS}
 .stApp, [data-testid="stSidebar"] {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; }}
 .stApp h1, .stApp h2, .stApp h3, .nilm-title, .num, .sec, .card .big, .sidecard .v, .card .rk {{ font-family: {DISPLAY} !important; }}
-.stApp {{ background: radial-gradient(1100px 520px at 80% -120px, rgba(18,181,166,.16), rgba(18,181,166,0) 70%), radial-gradient(900px 600px at -10% 110%, rgba(47,128,237,.12), rgba(47,128,237,0) 70%), {BG} !important; }}
+.stApp {{ background: radial-gradient(1100px 520px at 80% -120px, rgba(18,181,166,{GLOW1}), rgba(18,181,166,0) 70%), radial-gradient(900px 600px at -10% 110%, rgba(47,128,237,{GLOW2}), rgba(47,128,237,0) 70%), {BG} !important; }}
 .stApp::before {{ content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
-        background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size: 22px 22px; }}
+        background-image: radial-gradient({DOTS} 1px, transparent 1px); background-size: 22px 22px; }}
 .block-container {{ padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1200px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 .stDeployButton, [data-testid="stAppDeployButton"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu, footer {{ display: none !important; }}
 
 .nilm-title {{ font-size: 2.3rem; font-weight: 700; letter-spacing: -0.02em; color: {INK}; margin: 0 0 .15rem 0; line-height: 1.15; }}
 .nilm-sub {{ color: {MUTED}; max-width: 64ch; margin: 0 0 .9rem 0; font-size: 1.02rem; line-height: 1.55; }}
-.chip {{ display: inline-block; padding: 3px 11px; border-radius: 999px; background: rgba(255,255,255,.07); color: #C9D5E4; border: 1px solid rgba(255,255,255,.10);
+.chip {{ display: inline-block; padding: 3px 11px; border-radius: 999px; background: {GLASS}; color: {SOFT}; border: 1px solid {GLASSLINE};
          font-size: .82rem; font-weight: 500; margin: 0 6px 6px 0; }}
 .chip.demo {{ background: #FFF1D6; color: #8A5200; }}
 
@@ -115,9 +143,9 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .strip .num {{ font-size: 2.5rem; font-weight: 700; line-height: 1.1; color: {INK}; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }}
 .strip .num small {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; font-size: 1rem; font-weight: 500; color: {MUTED}; margin-left: 6px; letter-spacing: 0; }}
 .strip .sub {{ font-size: .88rem; color: {MUTED}; margin-top: 2px; }}
-.over {{ color: #FBBF24 !important; }} .under {{ color: #7FB4FF !important; }} .ok {{ color: #34D3BF !important; }}
+.over {{ color: {OVER} !important; }} .under {{ color: {UNDER} !important; }} .ok {{ color: {OK} !important; }}
 
-.legend {{ display: flex; flex-wrap: wrap; gap: 6px 18px; margin: .2rem 0 .3rem 0; font-size: .9rem; color: #C9D5E4; }}
+.legend {{ display: flex; flex-wrap: wrap; gap: 6px 18px; margin: .2rem 0 .3rem 0; font-size: .9rem; color: {SOFT}; }}
 .legend i {{ display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }}
 
 table.ledger {{ width: 100%; border-collapse: collapse; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 8px; overflow: hidden; font-variant-numeric: tabular-nums; }}
@@ -127,7 +155,7 @@ table.ledger {{ width: 100%; border-collapse: collapse; background: {SURFACE}; b
 .ledger tr:last-child td {{ border-bottom: none; }}
 .ledger tfoot td {{ font-weight: 600; background: {SURFACE2}; border-top: 1px solid {LINE}; }}
 .ledger .dot {{ display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 10px; vertical-align: -1px; }}
-.ledger .errbar {{ display: inline-block; height: 7px; border-radius: 4px; background: #3A5070; margin-right: 10px; vertical-align: middle; }}
+.ledger .errbar {{ display: inline-block; height: 7px; border-radius: 4px; background: {ERRBAR}; margin-right: 10px; vertical-align: middle; }}
 
 [data-testid="stSidebar"] {{ border-right: none; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-weight: 600; font-size: 1.05rem; }}
@@ -138,7 +166,7 @@ table.ledger {{ width: 100%; border-collapse: collapse; background: {SURFACE}; b
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 8px; overflow: hidden; }}
 img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !important; max-width: 100% !important; }}
 [data-testid="stSidebarHeader"] {{ height: auto !important; padding: 1.4rem 1rem .6rem 1.1rem !important; }}
-.callout {{ border-left: 3px solid #12B5A6; background: {SURFACE}; padding: 12px 18px; color: #C9D5E4; margin: .9rem 0 .2rem 0; max-width: 84ch; line-height: 1.55; }}
+.callout {{ border-left: 3px solid #12B5A6; background: {SURFACE}; padding: 12px 18px; color: {SOFT}; margin: .9rem 0 .2rem 0; max-width: 84ch; line-height: 1.55; }}
 .callout b {{ color: {INK}; font-weight: 600; }}
 .ledger .share {{ display: inline-block; height: 7px; border-radius: 4px; margin-right: 8px; vertical-align: middle; }}
 .strip .num.sm {{ font-size: 1.9rem; }}
@@ -184,25 +212,25 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 /* ---- kartlar ---- */
 .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: .7rem 0 .4rem 0; }}
 .card {{ background: {SURFACE}; border: 1px solid {LINE}; border-top: 4px solid var(--c); border-radius: 14px; padding: 15px 18px 14px 18px;
-        box-shadow: 0 18px 36px -24px rgba(0,0,0,.8); }}
+        box-shadow: {SHADOW}; }}
 .card.first {{ background: linear-gradient(180deg, color-mix(in srgb, var(--c) 16%, {SURFACE}) 0%, {SURFACE} 75%); border-color: color-mix(in srgb, var(--c) 40%, {LINE}); }}
 .card .nm {{ display: flex; align-items: center; gap: 9px; font-weight: 600; color: {INK}; font-size: 1.02rem; margin-bottom: 8px; }}
 .card .rk {{ width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--c); color: #fff; display: inline-flex; align-items: center; justify-content: center;
         font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-weight: 700; font-size: .95rem; }}
-.card .tag {{ margin-left: auto; background: rgba(18,181,166,.18); color: #5EE6D6; border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600; }}
+.card .tag {{ margin-left: auto; background: rgba(18,181,166,.16); color: {ACC}; border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600; }}
 .card .big {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-size: 1.85rem; font-weight: 700; color: {INK}; line-height: 1.1; letter-spacing: -0.02em; }}
 .card .big small {{ font-size: .9rem; color: {MUTED}; font-weight: 500; margin-left: 5px; font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; letter-spacing: 0; }}
 .card .big-sub {{ color: {MUTED}; font-size: .84rem; margin-bottom: 8px; }}
 .card .kv {{ display: flex; justify-content: space-between; align-items: center; font-size: .88rem; color: {MUTED}; padding: 3px 0; }}
 .card .kv b {{ color: {INK}; font-weight: 600; font-variant-numeric: tabular-nums; }}
-.card .kv b.win {{ color: #34D3BF; }}
+.card .kv b.win {{ color: {OK}; }}
 .card .kv b.win::before {{ content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #12B5A6; margin-right: 6px; vertical-align: 1px; }}
 .mleg {{ display: inline-flex; align-items: center; gap: 7px; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 999px; padding: 3px 12px 3px 9px; font-size: .88rem; color: {INK}; margin: 0 8px 6px 0; }}
 .mleg i {{ display: inline-block; width: 18px; height: 4px; border-radius: 3px; }}
 .mleg i.real {{ height: 10px; width: 14px; border-radius: 3px; opacity: .5; }}
 [data-testid="stPopover"] button, [data-testid="stPopoverButton"] {{ border-radius: 10px; }}
 [data-testid="stMain"] [data-testid="stButtonGroup"] button {{ border-radius: 10px !important; }}
-[data-testid="stMain"] [data-testid="stButtonGroup"] button[kind$="Active"] {{ background: rgba(18,181,166,.20) !important; border-color: #12B5A6 !important; color: #5EE6D6 !important; }}
+[data-testid="stMain"] [data-testid="stButtonGroup"] button[kind$="Active"] {{ background: rgba(18,181,166,.20) !important; border-color: #12B5A6 !important; color: {ACC} !important; }}
 [data-testid="stMain"] [data-baseweb="input"], [data-testid="stMain"] [data-testid="stNumberInputContainer"], [data-testid="stMain"] [data-baseweb="select"] > div {{ border-radius: 10px !important; }}
 [data-testid="stMain"] .block-container {{ position: relative; z-index: 1; }}
 /* ---- giriş animasyonları: sayfa açılınca bir kez, kısa ---- */
@@ -219,10 +247,37 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 [data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ animation: nl-fade .5s ease both; }}
 .callout {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) .1s both; }}
 [data-testid="InputInstructions"] {{ display: none !important; }}
+/* ---- aydınlık / karanlık düğmesi (sol panel) ---- */
+.nl-mode {{ display: flex; align-items: center; gap: 11px; cursor: pointer; user-select: none; margin: .2rem 0 .6rem 0; padding: 7px 10px;
+           border-radius: 14px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); transition: background .2s, border-color .2s; }}
+.nl-mode:hover {{ background: rgba(255,255,255,.08); border-color: rgba(18,181,166,.6); }}
+.nl-mode:focus-visible {{ outline: 2px solid #12B5A6; outline-offset: 2px; }}
+.nl-track {{ position: relative; width: 58px; height: 30px; border-radius: 999px; flex: none; overflow: hidden;
+            background: linear-gradient(135deg, #0B1626, #1B2F4D); box-shadow: inset 0 2px 6px rgba(0,0,0,.5); transition: background .4s; }}
+.nl-mode.is-light .nl-track {{ background: linear-gradient(135deg, #7DD3FC, #FDE68A); }}
+.nl-track .st1, .nl-track .st2 {{ position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #fff; transition: opacity .3s; }}
+.nl-track .st1 {{ left: 36px; top: 8px; }} .nl-track .st2 {{ left: 44px; top: 18px; width: 2px; height: 2px; }}
+.nl-mode.is-light .nl-track .st1, .nl-mode.is-light .nl-track .st2 {{ opacity: 0; }}
+.nl-knob {{ position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #E8EEF6;
+           box-shadow: inset -6px -2px 0 0 #B9C7DA, 0 2px 6px rgba(0,0,0,.4); transition: transform .45s cubic-bezier(.5,1.6,.4,1), background .4s, box-shadow .4s; }}
+.nl-mode.is-light .nl-knob {{ transform: translateX(28px) rotate(180deg); background: #FBBF24; box-shadow: 0 0 0 4px rgba(251,191,36,.25), 0 0 14px rgba(251,191,36,.8); }}
+.nl-mode b {{ color: #E6ECF5; font-size: .9rem; font-weight: 600; display: block; line-height: 1.15; }}
+.nl-mode small {{ color: #8FA3BF; font-size: .76rem; }}
+.nl-wipe {{ position: fixed; inset: 0; z-index: 999999; pointer-events: none; }}
+/* 'Benim faturam': halka kutusu sağdaki tabloyla aynı yükseklik ve genişlikte, halka ortada */
+.st-key-mine_split [data-testid="stHorizontalBlock"] {{ align-items: stretch !important; }}
+.st-key-mine_split [data-testid="stColumn"]:first-child [data-testid="stVerticalBlock"],
+.st-key-mine_split [data-testid="stColumn"]:first-child [data-testid="stElementContainer"],
+.st-key-mine_split [data-testid="stColumn"]:first-child [data-testid="stFullScreenFrame"],
+.st-key-mine_split [data-testid="stColumn"]:first-child [data-testid="stFullScreenFrame"] > div {{ height: 100% !important; width: 100% !important; }}
+.st-key-mine_split [data-testid="stColumn"]:first-child [data-testid="stVegaLiteChart"] {{ height: 100% !important; width: 100% !important;
+        display: flex !important; align-items: center; justify-content: center; box-sizing: border-box; }}
+.st-key-mine_split table.ledger {{ margin: 0; }}
+.st-key-mine_split [data-testid="stMarkdownContainer"], .st-key-mine_split [data-testid="stMarkdown"] {{ margin-bottom: 0 !important; }}
 /* ---- nasıl çalışır ---- */
 .hw-flow {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: .4rem 0 .6rem 0; }}
 .hw-step {{ position: relative; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 18px; padding: 16px 18px 16px 18px;
-           animation: nl-rise .55s cubic-bezier(.2,.8,.2,1) var(--d) both; box-shadow: 0 22px 44px -28px rgba(0,0,0,.85); }}
+           animation: nl-rise .55s cubic-bezier(.2,.8,.2,1) var(--d) both; box-shadow: {SHADOW}; }}
 .hw-step:not(:last-child)::after {{ content: ""; position: absolute; right: -13px; top: 58px; width: 10px; height: 10px; border-top: 2px solid #12B5A6;
            border-right: 2px solid #12B5A6; transform: rotate(45deg); z-index: 2; }}
 .hw-n {{ width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #12B5A6, #2F80ED); color: #fff; font-family: {DISPLAY};
@@ -236,18 +291,18 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 @keyframes hw-pulse {{ 0%, 100% {{ opacity: .12; }} 50% {{ opacity: .75; }} }}
 .hw-stack {{ display: flex; align-items: flex-end; gap: 6px; height: 60px; width: 100%; }}
 .hw-stack i {{ flex: 1; border-radius: 5px 5px 2px 2px; transform-origin: bottom; animation: nl-up .6s cubic-bezier(.2,.8,.2,1) .5s both; }}
-.hw-bill b {{ font-family: {DISPLAY}; font-size: 2.4rem; color: #fff; line-height: 1; }} .hw-bill small {{ color: {MUTED}; margin-left: 6px; }}
+.hw-bill b {{ font-family: {DISPLAY}; font-size: 2.4rem; color: {INK}; line-height: 1; }} .hw-bill small {{ color: {MUTED}; margin-left: 6px; }}
 .hw-t {{ font-family: {DISPLAY}; font-size: 1.15rem; font-weight: 700; color: {INK}; }}
-.hw-x {{ color: #B9C7DA; font-size: .9rem; line-height: 1.45; margin: 4px 0 10px 0; min-height: 3.9em; }}
-.hw-f {{ display: inline-block; color: #5EE6D6; background: rgba(18,181,166,.12); border-radius: 999px; padding: 2px 10px; font-size: .78rem; }}
+.hw-x {{ color: {SOFT}; font-size: .9rem; line-height: 1.45; margin: 4px 0 10px 0; min-height: 3.9em; }}
+.hw-f {{ display: inline-block; color: {ACC}; background: rgba(18,181,166,.12); border-radius: 999px; padding: 2px 10px; font-size: .78rem; }}
 .hw-day {{ color: {MUTED}; font-size: .92rem; text-align: right; }}
 .hw-houses {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: .5rem 0 .4rem 0; }}
 .hw-house {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 16px; padding: 14px 16px; opacity: .55; }}
 .hw-house.on {{ opacity: 1; border-color: #12B5A6; box-shadow: 0 0 0 1px rgba(18,181,166,.35), 0 20px 40px -26px rgba(18,181,166,.6); }}
-.hw-house b {{ display: block; font-family: {DISPLAY}; font-size: 1.4rem; color: #fff; }}
-.hw-house span {{ display: inline-block; font-size: .76rem; border-radius: 999px; padding: 1px 9px; margin: 4px 0 8px 0; background: rgba(255,255,255,.08); color: #C9D5E4; }}
-.hw-house.görülmeyen span {{ background: rgba(18,181,166,.2); color: #5EE6D6; }}
-.hw-house.doğrulama span {{ background: rgba(47,128,237,.22); color: #9CC3FF; }}
+.hw-house b {{ display: block; font-family: {DISPLAY}; font-size: 1.4rem; color: {INK}; }}
+.hw-house span {{ display: inline-block; font-size: .76rem; border-radius: 999px; padding: 1px 9px; margin: 4px 0 8px 0; background: {GLASS}; color: {SOFT}; }}
+.hw-house.görülmeyen span {{ background: rgba(18,181,166,.2); color: {ACC}; }}
+.hw-house.doğrulama span {{ background: rgba(47,128,237,.18); color: {ACCBLUE}; }}
 .hw-house small {{ display: block; color: {MUTED}; font-size: .8rem; line-height: 1.35; }}
 .hw-note {{ color: {MUTED}; font-size: .86rem; margin-top: .3rem; }}
 @media (max-width: 1000px) {{ .hw-flow {{ grid-template-columns: repeat(2, 1fr); }} .hw-houses {{ grid-template-columns: repeat(2, 1fr); }} .hw-step::after {{ display: none; }} }}
@@ -268,7 +323,7 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .sec {{ display: flex; align-items: center; gap: 10px; font-size: 1.3rem; }}
 .sec::before {{ content: ""; width: 6px; height: 20px; border-radius: 3px; background: linear-gradient(180deg, #12B5A6, #2F80ED); }}
 [data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"], .strip, table.ledger {{ border-radius: 16px !important;
-        box-shadow: 0 22px 44px -28px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.04); }}
+        box-shadow: {SHADOW}; }}
 .strip {{ overflow: hidden; }}
 .strip .cell {{ position: relative; }}
 .strip .cell::after {{ content: ""; position: absolute; left: 26px; right: 26px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0;
@@ -278,6 +333,7 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
         box-shadow: inset 4px 0 0 #12B5A6; }}
 .ledger tbody tr {{ animation: nl-fade .45s ease both; }}
 .ledger tr.oth td {{ color: {MUTED}; font-style: italic; }}
+.ledger td:first-child {{ white-space: nowrap; }}
 .ledger .muted {{ color: {MUTED}; }}
 .ledger tbody tr:hover td {{ background: {SURFACE2}; }}
 /* kaydırınca beliren öğeler (motion betiği sınıf ekler) */
@@ -338,6 +394,45 @@ _MOTION = r"""
       el.classList.add('nl-reveal'); io.observe(el);
     });
   }
+  // ---- aydınlık / karanlık: Streamlit temasını her sayfa için tarayıcıda saklar, dairesel geçişle yeniler ----
+  const PAGES = ['', 'nasil_calisir', 'tuketim', 'zaman_serisi', 'karsilastirma', 'tasarruf', 'gorulmeyen_ev', 'giris'];
+  const BGS = {light: '#F3F5F9', dark: '#0A1524'};
+  const setAll = name => {
+    const base = location.pathname.replace(/[^/]*$/, '');
+    PAGES.forEach(p => localStorage.setItem(`stActiveTheme-${base}${p}-v2`, JSON.stringify(name)));
+    localStorage.setItem('nilm_theme', name);
+  };
+  try {
+    if (!localStorage.getItem('nilm_theme')) {          // ilk ziyaret: karanlık başlar
+      setAll('Dark');
+      if (matchMedia('(prefers-color-scheme: light)').matches) location.reload();
+    }
+    const fade = sessionStorage.getItem('nilm_fade');
+    if (fade) {                                           // yenilemeden sonra yeni renkten açılış
+      sessionStorage.removeItem('nilm_fade');
+      const o = document.createElement('div'); o.className = 'nl-wipe'; o.style.background = fade; document.body.appendChild(o);
+      setTimeout(() => o.animate([{opacity: 1}, {opacity: 0}], {duration: 550, easing: 'ease-out', fill: 'forwards'}).onfinish = () => o.remove(), 450);
+    }
+  } catch (e) {}
+  function switchTo(to, x, y) {
+    const o = document.createElement('div'); o.className = 'nl-wipe'; o.style.background = BGS[to]; document.body.appendChild(o);
+    const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    o.animate([{clipPath: `circle(0px at ${x}px ${y}px)`}, {clipPath: `circle(${r}px at ${x}px ${y}px)`}],
+              {duration: 560, easing: 'cubic-bezier(.6,0,.2,1)', fill: 'forwards'}).onfinish = () => {
+      try { setAll(to === 'light' ? 'Light' : 'Dark'); sessionStorage.setItem('nilm_fade', BGS[to]); } catch (e) {}
+      location.reload();
+    };
+  }
+  const go = e => {
+    const t = e.target.closest && e.target.closest('.nl-mode');
+    if (!t || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    t.classList.toggle('is-light');
+    const b = t.getBoundingClientRect();
+    switchTo(t.dataset.to, b.left + 32, b.top + b.height / 2);
+  };
+  document.addEventListener('click', go); document.addEventListener('keydown', go);
+
   let q = false;
   new MutationObserver(() => { if (!q) { q = true; requestAnimationFrame(() => { q = false; scan(); }); } })
     .observe(document.body, {childList: true, subtree: true, characterData: true});
@@ -349,7 +444,8 @@ _MOTION = r"""
 
 def inject():
     """Tüm sayfalar için CSS ve küçük hareket betiği (app.py bir kez çağırır)."""
-    st.markdown(_CSS, unsafe_allow_html=True)
+    apply_mode()
+    st.markdown(_css(), unsafe_allow_html=True)
     st.html(_MOTION, unsafe_allow_javascript=True)
 
 
@@ -368,6 +464,16 @@ def page_header(title: str, sub: str = "", chips=(), demo: bool = False):
     st.markdown(f'<div class="pg-hero"><div class="pg-txt"><h1 class="nilm-title">{html.escape(title)}</h1>'
                 f'{f"<p class=nilm-sub>{html.escape(sub)}</p>" if sub else ""}<div class="pg-chips">{chip_html}</div></div>'
                 f'<div class="pg-bars" aria-hidden="true">{bars}</div></div>', unsafe_allow_html=True)
+
+
+def mode_toggle():
+    """Sol panelde aydınlık/karanlık düğmesi. Tıklama hareket betiğinde işlenir (sayfa geçiş animasyonuyla)."""
+    light = MODE == "light"
+    to = "dark" if light else "light"
+    st.markdown(f'<div class="nl-mode{" is-light" if light else ""}" role="button" tabindex="0" data-to="{to}" '
+                f'aria-label="{"Karanlık" if light else "Aydınlık"} görünüme geç"><span class="nl-track"><i class="st1"></i><i class="st2"></i>'
+                f'<span class="nl-knob"></span></span><span><b>{"Aydınlık" if light else "Karanlık"} görünüm</b>'
+                f'<small>{"Karanlığa" if light else "Aydınlığa"} geçmek için dokun</small></span></div>', unsafe_allow_html=True)
 
 
 def section(title: str, note: str = ""):

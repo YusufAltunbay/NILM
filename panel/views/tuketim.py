@@ -20,7 +20,7 @@ if bill.empty:
     st.stop()
 
 MINE, SAMPLE = "Benim faturam", "Model doğruluğu (örnek ev ölçümü)"
-b1, b2 = st.columns([1, 2], vertical_alignment="bottom")
+b1, b2 = st.columns([1.3, 2], vertical_alignment="bottom")
 with b1:
     blocks.bill_form("tk_bill")
 mine = data.my_split(model, house, price)
@@ -45,10 +45,21 @@ if mode == MINE:
                   f"<b>{html.escape(theme.tr(top))}</b>. Kalan <b>{other:,.0f} TL</b> aydınlatma, TV, ısıtma gibi diğer cihazlar. "
                   f"Paylar <b>{html.escape(model)}</b> modelinin örnek evdeki ayrımından tahmin edildi.")
     theme.section("Dağılım")
-    mine_bill = pd.DataFrame({"Tahmin (TL)": tl})
-    blocks.bill_view(mine_bill, key="view_mine", default="Halka", series=(("Senin faturan", "Tahmin (TL)"),))
-    theme.section("Fatura kalemleri")
-    theme.share_table(tl, kwh)
+    view = st.segmented_control("Görünüm", ["Halka", "Şerit", "Dikey şerit", "Çubuk"], default="Halka", key="view_mine",
+                                label_visibility="collapsed") or "Halka"
+    if view == "Halka":   # halka solda, kalemler sağda
+        with st.container(key="mine_split"):   # halka kutusu tablo ile aynı yükseklikte (CSS: theme)
+            c1, c2 = st.columns([1, 1.35], gap="large")
+            with c1:
+                st.altair_chart(charts.share_donut(tl), width="content")
+            with c2:
+                theme.share_table(tl, kwh)
+    else:
+        theme.legend(list(tl.index))
+        chart = {"Şerit": charts.ribbon, "Dikey şerit": charts.stacked, "Çubuk": charts.bars}[view]
+        st.altair_chart(chart(pd.DataFrame({"Tahmin (TL)": tl}), (("Senin faturan", "Tahmin (TL)"),)), width="stretch")
+        theme.section("Fatura kalemleri")
+        theme.share_table(tl, kwh)
     st.stop()
 
 theme.bill_strip(bill)

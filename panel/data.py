@@ -165,6 +165,7 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
     elif user and user.get("house") in houses:
         houses = [user["house"]]
     with st.sidebar:
+        theme.mode_toggle()
         theme.side_label("Modeller")
         models = st.pills("Modeller", all_models, selection_mode="multi", default=all_models, key="sb_models",
                           format_func=theme.model_pill, label_visibility="collapsed") or all_models[:1]

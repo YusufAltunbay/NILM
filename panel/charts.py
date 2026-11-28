@@ -8,9 +8,9 @@ FONT = "Figtree, Segoe UI, system-ui, sans-serif"
 
 
 def _style(chart):
-    return (chart.properties(padding={"left": 8, "right": 34, "top": 8, "bottom": 8}).configure(background="#FFFFFF").configure_view(stroke=None)
+    return (chart.properties(padding={"left": 8, "right": 34, "top": 8, "bottom": 8}).configure(background=theme.SURFACE).configure_view(stroke=None)
             .configure_axis(labelFont=FONT, titleFont=FONT, labelColor=theme.MUTED, titleColor=theme.MUTED,
-                            gridColor="#E8EDF4", domainColor="#CBD5E3", tickColor="#CBD5E3", labelFontSize=12, titleFontSize=12)
+                            gridColor=theme.GRID, domainColor="#2C4262", tickColor="#2C4262", labelFontSize=12, titleFontSize=12)
             .configure_legend(labelFont=FONT, titleFont=FONT, labelColor=theme.INK, titleColor=theme.MUTED, orient="top", symbolType="square"))
 
 
@@ -30,7 +30,7 @@ def ribbon(bill: pd.DataFrame):
     row_enc = alt.Y("Satir:N", sort=["Gerçek", "Tahmin"], title=None,
                     axis=alt.Axis(domain=False, ticks=False, labelFontSize=14, labelColor=theme.INK, labelPadding=10))
     xmax = float(d["end"].max()) or 1.0
-    bars = alt.Chart(d).mark_bar(height={"band": 0.72}, cornerRadius=3, stroke="#FFFFFF", strokeWidth=2).encode(
+    bars = alt.Chart(d).mark_bar(height={"band": 0.72}, cornerRadius=3, stroke=theme.SURFACE, strokeWidth=2).encode(
         x=alt.X("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, xmax], nice=False),
                 axis=alt.Axis(grid=False, format=",.0f", tickCount=6, labelOverlap=True)), x2="end:Q", y=row_enc,
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
@@ -55,7 +55,7 @@ def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.Dat
     """Gerçek güç (gradyanlı alan, adım çizgisi) ve tahmin (ince lacivert çizgi); imleçle değerleri gösterir."""
     c = theme.color(appliance)
     x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%d.%m %H:%M", grid=False, tickCount=6, labelFontSize=11, domain=False, ticks=False))
-    yax = alt.Axis(tickCount=5, gridColor="#EDF1F6", gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)
+    yax = alt.Axis(tickCount=5, gridColor=theme.GRID, gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)
     y = alt.Y("Gerçek:Q", title="Güç (W)", axis=yax)
     grad = alt.Gradient(gradient="linear", x1=1, x2=1, y1=1, y2=0,
                         stops=[alt.GradientStop(color=_rgba(c, 0.0), offset=0), alt.GradientStop(color=_rgba(c, 0.55), offset=1)])
@@ -64,7 +64,7 @@ def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.Dat
     if bands is not None and not bands.empty:
         layers.append(alt.Chart(bands).mark_rect(color=c, opacity=0.06).encode(x=alt.X("start:T"), x2="end:T"))
     if show_aggregate:
-        layers.append(alt.Chart(df).mark_line(color="#C9D3E0", strokeWidth=1, interpolate="step-after").encode(
+        layers.append(alt.Chart(df).mark_line(color="#4A6182", strokeWidth=1, interpolate="step-after").encode(
             x=x, y=alt.Y("Toplam:Q", title="Güç (W)", axis=yax)))
     layers.append(alt.Chart(df).mark_area(color=grad, interpolate="step-after", line={"color": c, "strokeWidth": 1.6}).encode(x=x, y=y))
     layers.append(alt.Chart(df).mark_line(color=theme.INK, strokeWidth=1.7, interpolate="step-after").encode(x=x, y=alt.Y("Tahmin:Q")))
@@ -72,8 +72,8 @@ def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.Dat
             alt.Tooltip("Gerçek:Q", format=".0f", title="Gerçek (W)"), alt.Tooltip("Tahmin:Q", format=".0f", title="Tahmin (W)")]
     layers.append(alt.Chart(df).mark_point(opacity=0).encode(x=x, y=y).add_params(nearest))
     layers.append(alt.Chart(df).mark_rule(color="#94A3B8", strokeDash=[3, 3]).encode(x=x, tooltip=tips).transform_filter(nearest))
-    layers.append(alt.Chart(df).mark_circle(size=70, color=c, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(x=x, y=y).transform_filter(nearest))
-    layers.append(alt.Chart(df).mark_circle(size=70, color=theme.INK, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(
+    layers.append(alt.Chart(df).mark_circle(size=70, color=c, stroke=theme.SURFACE, strokeWidth=2, opacity=1).encode(x=x, y=y).transform_filter(nearest))
+    layers.append(alt.Chart(df).mark_circle(size=70, color=theme.INK, stroke=theme.SURFACE, strokeWidth=2, opacity=1).encode(
         x=x, y=alt.Y("Tahmin:Q")).transform_filter(nearest))
     return _style(alt.layer(*layers).properties(height=380))
 
@@ -87,7 +87,7 @@ def donut(bill: pd.DataFrame):
         d = pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "TL": bill[col].round(2).to_numpy()})
         total = d["TL"].sum()
         d["Pay"] = (d["TL"] / max(total, 1e-9) * 100).round(1)
-        arc = alt.Chart(d).mark_arc(innerRadius=88, outerRadius=138, stroke="#FFFFFF", strokeWidth=2).encode(
+        arc = alt.Chart(d).mark_arc(innerRadius=88, outerRadius=138, stroke=theme.SURFACE, strokeWidth=2).encode(
             theta=alt.Theta("TL:Q", stack=True),
             color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
             tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"), alt.Tooltip("Pay:Q", format=".1f", title="Fatura payı (%)")])
@@ -139,7 +139,7 @@ def stacked(bill: pd.DataFrame):
     x = alt.X("Seri:N", sort=["Gerçek", "Tahmin"], title=None,
               axis=alt.Axis(labelAngle=0, labelFontSize=14, labelColor=theme.INK, ticks=False, domain=False, labelPadding=8))
     ymax = float(d["end"].max()) * 1.04 or 1.0
-    bar = alt.Chart(d).mark_bar(width={"band": 0.55}, cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
+    bar = alt.Chart(d).mark_bar(width={"band": 0.55}, cornerRadius=4, stroke=theme.SURFACE, strokeWidth=2).encode(
         x=x, y=alt.Y("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, ymax], nice=False), axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
@@ -197,13 +197,13 @@ def heatmap(r: pd.DataFrame, metric: str, title: str, lower_better: bool):
     models = sorted(d["model"].unique())
     x = alt.X("Cihaz:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False, orient="top"))
     y = alt.Y("model:N", sort=models, title=None, axis=alt.Axis(labelFontSize=13, labelColor=theme.INK, labelLimit=260, ticks=False, domain=False))
-    scale = alt.Scale(domain=[0, 1], range=["#E4F5F2", "#0B6B61"])
-    rect = alt.Chart(d).mark_rect(stroke="#FFFFFF", strokeWidth=3, cornerRadius=4).encode(
+    scale = alt.Scale(domain=[0, 1], range=["#15304A", "#12B5A6"])
+    rect = alt.Chart(d).mark_rect(stroke=theme.SURFACE, strokeWidth=3, cornerRadius=4).encode(
         x=x, y=y, color=alt.Color("score:Q", scale=scale, legend=None),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("model:N", title="Model"), alt.Tooltip(f"{metric}:Q", format=".3f", title=title)])
     txt = alt.Chart(d).mark_text(fontSize=13, fontWeight=600, font=FONT).encode(tooltip=alt.value(None), 
         x=x, y=y, text="label:N",
-        color=alt.condition(alt.datum.score > 0.5, alt.value("#FFFFFF"), alt.value(theme.INK)))
+        color=alt.value("#FFFFFF"))
     layers = [rect, txt]
     if len(models) > 1:  # tek modelde "en iyi" çerçevesi anlamsız
         layers.insert(1, alt.Chart(d[d["best"]]).mark_rect(fill=None, stroke=theme.INK, strokeWidth=2.5, cornerRadius=4).encode(x=x, y=y))
@@ -228,7 +228,7 @@ def model_bars(r: pd.DataFrame, metric: str, title: str):
 
 _DASH = [[], [7, 3], [2, 3], [10, 3, 2, 3], [4, 4], [1, 4]]
 _AX_X = dict(format="%d.%m %H:%M", grid=False, tickCount=6, labelFontSize=11, domain=False, ticks=False)
-_AX_Y = dict(tickCount=5, gridColor="#EDF1F6", gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)
+_AX_Y = dict(tickCount=5, gridColor=theme.GRID, gridDash=[2, 3], labelFontSize=11, domain=False, ticks=False)
 
 
 def _real_area(df, c, x, y):
@@ -249,7 +249,7 @@ def series_multi(df: pd.DataFrame, appliance: str, models, show_aggregate: bool 
     if bands is not None and not bands.empty:
         layers.append(alt.Chart(bands).mark_rect(color=c, opacity=0.07).encode(x=alt.X("start:T"), x2="end:T"))
     if show_aggregate:
-        layers.append(alt.Chart(df).mark_line(color="#C9D3E0", strokeWidth=1, interpolate="step-after").encode(
+        layers.append(alt.Chart(df).mark_line(color="#4A6182", strokeWidth=1, interpolate="step-after").encode(
             x=x, y=alt.Y("Toplam:Q", title="Güç (W)")))
     layers.append(_real_area(df, c, x, y))
     for i, m in enumerate(models):
@@ -259,9 +259,9 @@ def series_multi(df: pd.DataFrame, appliance: str, models, show_aggregate: bool 
     tips += [alt.Tooltip(f"m{i}:Q", format=".0f", title=f"{m} (W)") for i, m in enumerate(models)]
     layers.append(alt.Chart(df).mark_point(opacity=0).encode(x=x, y=y).add_params(nearest))
     layers.append(alt.Chart(df).mark_rule(color="#94A3B8", strokeDash=[3, 3]).encode(x=x, tooltip=tips).transform_filter(nearest))
-    layers.append(alt.Chart(df).mark_circle(size=80, color=c, stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(x=x, y=y).transform_filter(nearest))
+    layers.append(alt.Chart(df).mark_circle(size=80, color=c, stroke=theme.SURFACE, strokeWidth=2, opacity=1).encode(x=x, y=y).transform_filter(nearest))
     for i, m in enumerate(models):
-        layers.append(alt.Chart(df).mark_circle(size=60, color=theme.mcolor(m), stroke="#FFFFFF", strokeWidth=2, opacity=1).encode(
+        layers.append(alt.Chart(df).mark_circle(size=60, color=theme.mcolor(m), stroke=theme.SURFACE, strokeWidth=2, opacity=1).encode(
             x=x, y=alt.Y(f"m{i}:Q")).transform_filter(nearest))
     return _style(alt.layer(*layers).properties(height=height))
 
@@ -316,7 +316,7 @@ def stacked_multi(bills: dict):
     x = alt.X("Seri:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=13, labelColor=theme.INK, ticks=False, domain=False,
                                                              labelPadding=8, labelLimit=170))
     ymax = float(d["end"].max()) * 1.04 or 1.0
-    bar = alt.Chart(d).mark_bar(width={"band": 0.62}, cornerRadius=4, stroke="#FFFFFF", strokeWidth=2).encode(
+    bar = alt.Chart(d).mark_bar(width={"band": 0.62}, cornerRadius=4, stroke=theme.SURFACE, strokeWidth=2).encode(
         x=x, y=alt.Y("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, ymax], nice=False), axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N", title="Sütun"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
@@ -359,3 +359,26 @@ def savings_bars(s: pd.DataFrame):
     txt = base.mark_text(align="left", dx=8, fontSize=13, font=FONT, color=theme.INK, fontWeight=600).encode(
         tooltip=alt.value(None), text=alt.Text("Tasarruf TL:Q", format=",.1f"))
     return _style((bar + txt).properties(height=max(110, 52 * len(d))))
+
+
+def day_split(sayac: pd.DataFrame, parts: pd.DataFrame, height: int = 360):
+    """'Nasıl çalışır' sayfası: üstte sayacın tek çizgisi, altta aynı günün cihazlara ayrılmış hali.
+    sayac: timestamp, W. parts: timestamp, Cihaz (ham ad), W (uzun biçim, 'other' dahil)."""
+    order = theme.ordered(parts["Cihaz"].unique())
+    names, colors = theme.palette(order)
+    d = parts.assign(Ad=parts["Cihaz"].map(theme.tr), sira=parts["Cihaz"].map({a: i for i, a in enumerate(order)}))
+    x = alt.X("timestamp:T", title=None, axis=alt.Axis(format="%H:%M", tickCount=8, grid=False, labelColor=theme.MUTED))
+    top = alt.Chart(sayac).mark_area(line={"color": "#E8EEF6", "strokeWidth": 1.3}, interpolate="monotone",
+                                     color=alt.Gradient(gradient="linear", x1=1, x2=1, y1=1, y2=0,
+                                                        stops=[alt.GradientStop(color="rgba(232,238,246,0)", offset=0),
+                                                               alt.GradientStop(color="rgba(232,238,246,.28)", offset=1)])).encode(
+        x=x, y=alt.Y("W:Q", title="Sayaç (W)", axis=alt.Axis(tickCount=3, gridColor=theme.GRID)),
+        tooltip=[alt.Tooltip("timestamp:T", format="%H:%M", title="Saat"), alt.Tooltip("W:Q", format=",.0f", title="Toplam (W)")]
+    ).properties(height=120)
+    bottom = alt.Chart(d).mark_area(interpolate="monotone").encode(
+        x=x, y=alt.Y("W:Q", stack="zero", title="Cihazlara ayrılmış (W)", axis=alt.Axis(tickCount=4, gridColor=theme.GRID)),
+        color=alt.Color("Ad:N", scale=alt.Scale(domain=names, range=colors), legend=None),
+        order=alt.Order("sira:Q"),
+        tooltip=[alt.Tooltip("timestamp:T", format="%H:%M", title="Saat"), alt.Tooltip("Ad:N", title="Cihaz"), alt.Tooltip("W:Q", format=",.0f", title="Güç (W)")]
+    ).properties(height=height)
+    return _style(alt.vconcat(top, bottom, spacing=14).resolve_scale(x="shared"))

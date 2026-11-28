@@ -110,15 +110,15 @@ _LOGIN_CSS = """
 @keyframes lg-fade { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
 @keyframes lg-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 /* form kartı */
-.st-key-loginbox { position: relative; z-index: 1; background: #fff; border-radius: 20px; padding: 26px 28px 22px 28px !important;
-                   box-shadow: 0 30px 70px -30px rgba(0,0,0,.65); animation: lg-in .5s ease .15s both; }
-.st-key-loginbox h3 { font-family: 'Bricolage','Segoe UI',sans-serif; font-size: 1.35rem; margin: 0 0 .2rem 0; padding: 0; color: #0E1B2E; }
+.st-key-loginbox { position: relative; z-index: 1; background: rgba(17,31,51,.72); border: 1px solid rgba(255,255,255,.10);
+                   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-radius: 22px; padding: 26px 28px 22px 28px !important;
+                   box-shadow: 0 40px 80px -40px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.06); animation: lg-in .5s ease .15s both; }
+.st-key-loginbox h3 { font-family: 'Bricolage','Segoe UI',sans-serif; font-size: 1.35rem; margin: 0 0 .2rem 0; padding: 0; color: #fff; }
 .st-key-loginbox [data-testid="stForm"] { border: none; padding: 0; }
 .st-key-guest button { background: transparent !important; color: #D5E0EE !important; border: 1px solid rgba(255,255,255,.25) !important; }
 .st-key-guest button:hover { border-color: #12B5A6 !important; color: #fff !important; }
 .st-key-guest { position: relative; z-index: 1; margin-top: .4rem; }
 @media (max-width: 900px) { .lg-hero { min-height: auto; padding: 2rem 0 1rem 0; } .st-key-loginbox { margin-top: 0; } }
-@media (prefers-reduced-motion: reduce) { .lg-col i, .lg-keys div, .st-key-loginbox { animation: none !important; } }
 </style>
 """
 
@@ -151,7 +151,7 @@ def _hero(pred):
     fact_html = "".join(f"<div><b>{n}</b>{t}</div>" for n, t in facts)
     svg = base64.b64encode((Path(__file__).parent / "assets" / "logo.svg").read_bytes()).decode()
     # arkadaki yarı saydam büyük logo
-    st.markdown("<style>.stApp::before { content: ''; position: fixed; right: -5vw; bottom: -2vh; width: 60vw; height: 15vw; z-index: 0;"
+    st.markdown("<style>.stApp::before { content: ''; position: fixed; inset: auto -5vw -2vh auto; width: 60vw; height: 15vw; z-index: 0;"
                 f"background: url(data:image/svg+xml;base64,{svg}) no-repeat right bottom / contain; opacity: .07; pointer-events: none; }}"
                 "@media (max-width: 900px) { .stApp::before { display: none; } }</style>", unsafe_allow_html=True)
     st.markdown(f'''<div class="lg-hero">

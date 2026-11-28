@@ -7,9 +7,14 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-INK = "#0E1B2E"
-MUTED = "#5B6B82"
-LINE = "#DDE3EC"
+# Koyu tema (giriş ekranıyla aynı dünya)
+INK = "#E8EEF6"        # ana metin
+MUTED = "#8FA3BF"      # ikincil metin
+LINE = "#22344F"       # çizgi / kenar
+BG = "#0A1524"         # sayfa zemini
+SURFACE = "#111F33"    # kart zemini
+SURFACE2 = "#16273F"   # tablo başlığı, hover
+GRID = "#1E3049"       # grafik ızgarası
 
 # Cihaz -> (Türkçe ad, renk). Yeni cihaz eklenirse buraya da eklenir.
 APPLIANCES = {
@@ -22,7 +27,7 @@ APPLIANCES = {
 }
 _FALLBACK = ["#64748B", "#A16207", "#0F766E", "#9D174D", "#4F46E5", "#BE185D", "#15803D", "#B45309"]
 # Model renkleri cihaz renklerinden (mavi, mor, turuncu, turkuaz, pembe) ayrışsın diye ayrı bir set.
-MODEL_COLORS = ["#E11D48", "#16A34A", "#0891B2", "#CA8A04", "#9333EA", "#0E1B2E"]
+MODEL_COLORS = ["#F43F5E", "#22C55E", "#22B8E0", "#EAB308", "#A855F7", "#E8EEF6"]
 EMOJI = {"fridge": "\U0001F7E6", "washing machine": "\U0001F7EA", "kettle": "\U0001F7E7",
          "dish washer": "\U0001F7E9", "microwave": "\U0001F7E5"}
 _MODELS: list = []
@@ -86,14 +91,16 @@ _CSS = f"""
 {_font_faces()}
 .stApp, [data-testid="stSidebar"] {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; }}
 .stApp h1, .stApp h2, .stApp h3, .nilm-title, .num, .sec, .card .big, .sidecard .v, .card .rk {{ font-family: {DISPLAY} !important; }}
-.stApp {{ background: radial-gradient(900px 420px at 85% -60px, rgba(18,181,166,.10), rgba(18,181,166,0) 70%), #F3F5F9; }}
+.stApp {{ background: radial-gradient(1100px 520px at 80% -120px, rgba(18,181,166,.16), rgba(18,181,166,0) 70%), radial-gradient(900px 600px at -10% 110%, rgba(47,128,237,.12), rgba(47,128,237,0) 70%), {BG} !important; }}
+.stApp::before {{ content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .5;
+        background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size: 22px 22px; }}
 .block-container {{ padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1200px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 .stDeployButton, [data-testid="stAppDeployButton"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu, footer {{ display: none !important; }}
 
 .nilm-title {{ font-size: 2.3rem; font-weight: 700; letter-spacing: -0.02em; color: {INK}; margin: 0 0 .15rem 0; line-height: 1.15; }}
 .nilm-sub {{ color: {MUTED}; max-width: 64ch; margin: 0 0 .9rem 0; font-size: 1.02rem; line-height: 1.55; }}
-.chip {{ display: inline-block; padding: 3px 11px; border-radius: 999px; background: #E3EAF4; color: #27405F;
+.chip {{ display: inline-block; padding: 3px 11px; border-radius: 999px; background: rgba(255,255,255,.07); color: #C9D5E4; border: 1px solid rgba(255,255,255,.10);
          font-size: .82rem; font-weight: 500; margin: 0 6px 6px 0; }}
 .chip.demo {{ background: #FFF1D6; color: #8A5200; }}
 
@@ -101,37 +108,37 @@ header[data-testid="stHeader"] {{ background: transparent; }}
         margin: 1.9rem 0 .15rem 0; letter-spacing: -0.01em; }}
 .sec-note {{ color: {MUTED}; font-size: .92rem; margin: 0 0 .6rem 0; max-width: 70ch; }}
 
-.strip {{ display: flex; flex-wrap: wrap; background: #fff; border: 1px solid {LINE}; border-radius: 8px; margin: 1.1rem 0 .4rem 0; }}
+.strip {{ display: flex; flex-wrap: wrap; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 8px; margin: 1.1rem 0 .4rem 0; }}
 .strip .cell {{ flex: 1 1 170px; padding: 18px 26px; border-right: 1px solid {LINE}; }}
 .strip .cell:last-child {{ border-right: none; }}
 .strip .lab {{ font-size: .88rem; color: {MUTED}; margin-bottom: 2px; }}
 .strip .num {{ font-size: 2.5rem; font-weight: 700; line-height: 1.1; color: {INK}; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }}
 .strip .num small {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; font-size: 1rem; font-weight: 500; color: {MUTED}; margin-left: 6px; letter-spacing: 0; }}
 .strip .sub {{ font-size: .88rem; color: {MUTED}; margin-top: 2px; }}
-.over {{ color: #B45309 !important; }} .under {{ color: #1D4ED8 !important; }} .ok {{ color: #0F766E !important; }}
+.over {{ color: #FBBF24 !important; }} .under {{ color: #7FB4FF !important; }} .ok {{ color: #34D3BF !important; }}
 
-.legend {{ display: flex; flex-wrap: wrap; gap: 6px 18px; margin: .2rem 0 .3rem 0; font-size: .9rem; color: #27405F; }}
+.legend {{ display: flex; flex-wrap: wrap; gap: 6px 18px; margin: .2rem 0 .3rem 0; font-size: .9rem; color: #C9D5E4; }}
 .legend i {{ display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }}
 
-table.ledger {{ width: 100%; border-collapse: collapse; background: #fff; border: 1px solid {LINE}; border-radius: 8px; overflow: hidden; font-variant-numeric: tabular-nums; }}
-.ledger th {{ text-align: right; font-weight: 500; font-size: .86rem; color: {MUTED}; padding: 11px 16px; border-bottom: 1px solid {LINE}; background: #FAFBFD; }}
+table.ledger {{ width: 100%; border-collapse: collapse; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 8px; overflow: hidden; font-variant-numeric: tabular-nums; }}
+.ledger th {{ text-align: right; font-weight: 500; font-size: .86rem; color: {MUTED}; padding: 11px 16px; border-bottom: 1px solid {LINE}; background: {SURFACE2}; }}
 .ledger th:first-child, .ledger td:first-child {{ text-align: left; }}
-.ledger td {{ text-align: right; padding: 12px 16px; border-bottom: 1px solid #EEF2F7; color: {INK}; font-size: .97rem; }}
+.ledger td {{ text-align: right; padding: 12px 16px; border-bottom: 1px solid {LINE}; color: {INK}; font-size: .97rem; }}
 .ledger tr:last-child td {{ border-bottom: none; }}
-.ledger tfoot td {{ font-weight: 600; background: #FAFBFD; border-top: 1px solid {LINE}; }}
+.ledger tfoot td {{ font-weight: 600; background: {SURFACE2}; border-top: 1px solid {LINE}; }}
 .ledger .dot {{ display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 10px; vertical-align: -1px; }}
-.ledger .errbar {{ display: inline-block; height: 7px; border-radius: 4px; background: #CBD5E3; margin-right: 10px; vertical-align: middle; }}
+.ledger .errbar {{ display: inline-block; height: 7px; border-radius: 4px; background: #3A5070; margin-right: 10px; vertical-align: middle; }}
 
 [data-testid="stSidebar"] {{ border-right: none; }}
 [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-weight: 600; font-size: 1.05rem; }}
 .side-foot {{ color: #8FA3BF; font-size: .8rem; line-height: 1.5; margin-top: 2rem; padding-top: .9rem; border-top: 1px solid #243752; }}
 .demo-note {{ background: #2A2411; color: #FFD58A; font-size: .84rem; line-height: 1.45; padding: 9px 12px; border-radius: 6px; margin: 0 0 1rem 0; }}
 
-[data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ background: #fff; border: 1px solid {LINE}; border-radius: 8px; padding: 14px 10px 6px 10px; overflow: hidden; }}
+[data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 8px; padding: 14px 10px 6px 10px; overflow: hidden; }}
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 8px; overflow: hidden; }}
 img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !important; max-width: 100% !important; }}
 [data-testid="stSidebarHeader"] {{ height: auto !important; padding: 1.4rem 1rem .6rem 1.1rem !important; }}
-.callout {{ border-left: 3px solid #12B5A6; background: #fff; padding: 12px 18px; color: #27405F; margin: .9rem 0 .2rem 0; max-width: 84ch; line-height: 1.55; }}
+.callout {{ border-left: 3px solid #12B5A6; background: {SURFACE}; padding: 12px 18px; color: #C9D5E4; margin: .9rem 0 .2rem 0; max-width: 84ch; line-height: 1.55; }}
 .callout b {{ color: {INK}; font-weight: 600; }}
 .ledger .share {{ display: inline-block; height: 7px; border-radius: 4px; margin-right: 8px; vertical-align: middle; }}
 .strip .num.sm {{ font-size: 1.9rem; }}
@@ -176,24 +183,28 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 [data-testid="stElementToolbarButton"]:has(button[aria-label="Copy Vega-Lite spec"]) {{ display: none !important; }}
 /* ---- kartlar ---- */
 .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: .7rem 0 .4rem 0; }}
-.card {{ background: #fff; border: 1px solid {LINE}; border-top: 4px solid var(--c); border-radius: 14px; padding: 15px 18px 14px 18px;
-        box-shadow: 0 1px 2px rgba(14,27,46,.04), 0 10px 24px -14px rgba(14,27,46,.22); }}
-.card.first {{ background: linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, #fff) 0%, #fff 70%); border-color: color-mix(in srgb, var(--c) 40%, {LINE}); }}
+.card {{ background: {SURFACE}; border: 1px solid {LINE}; border-top: 4px solid var(--c); border-radius: 14px; padding: 15px 18px 14px 18px;
+        box-shadow: 0 18px 36px -24px rgba(0,0,0,.8); }}
+.card.first {{ background: linear-gradient(180deg, color-mix(in srgb, var(--c) 16%, {SURFACE}) 0%, {SURFACE} 75%); border-color: color-mix(in srgb, var(--c) 40%, {LINE}); }}
 .card .nm {{ display: flex; align-items: center; gap: 9px; font-weight: 600; color: {INK}; font-size: 1.02rem; margin-bottom: 8px; }}
 .card .rk {{ width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--c); color: #fff; display: inline-flex; align-items: center; justify-content: center;
         font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-weight: 700; font-size: .95rem; }}
-.card .tag {{ margin-left: auto; background: #E0F7F4; color: #0B6B61; border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600; }}
+.card .tag {{ margin-left: auto; background: rgba(18,181,166,.18); color: #5EE6D6; border-radius: 999px; padding: 2px 10px; font-size: .74rem; font-weight: 600; }}
 .card .big {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', sans-serif; font-size: 1.85rem; font-weight: 700; color: {INK}; line-height: 1.1; letter-spacing: -0.02em; }}
 .card .big small {{ font-size: .9rem; color: {MUTED}; font-weight: 500; margin-left: 5px; font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; letter-spacing: 0; }}
 .card .big-sub {{ color: {MUTED}; font-size: .84rem; margin-bottom: 8px; }}
 .card .kv {{ display: flex; justify-content: space-between; align-items: center; font-size: .88rem; color: {MUTED}; padding: 3px 0; }}
 .card .kv b {{ color: {INK}; font-weight: 600; font-variant-numeric: tabular-nums; }}
-.card .kv b.win {{ color: #0F766E; }}
+.card .kv b.win {{ color: #34D3BF; }}
 .card .kv b.win::before {{ content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #12B5A6; margin-right: 6px; vertical-align: 1px; }}
-.mleg {{ display: inline-flex; align-items: center; gap: 7px; background: #fff; border: 1px solid {LINE}; border-radius: 999px; padding: 3px 12px 3px 9px; font-size: .88rem; color: {INK}; margin: 0 8px 6px 0; }}
+.mleg {{ display: inline-flex; align-items: center; gap: 7px; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 999px; padding: 3px 12px 3px 9px; font-size: .88rem; color: {INK}; margin: 0 8px 6px 0; }}
 .mleg i {{ display: inline-block; width: 18px; height: 4px; border-radius: 3px; }}
 .mleg i.real {{ height: 10px; width: 14px; border-radius: 3px; opacity: .5; }}
 [data-testid="stPopover"] button, [data-testid="stPopoverButton"] {{ border-radius: 10px; }}
+[data-testid="stMain"] [data-testid="stButtonGroup"] button {{ border-radius: 10px !important; }}
+[data-testid="stMain"] [data-testid="stButtonGroup"] button[kind$="Active"] {{ background: rgba(18,181,166,.20) !important; border-color: #12B5A6 !important; color: #5EE6D6 !important; }}
+[data-testid="stMain"] [data-baseweb="input"], [data-testid="stMain"] [data-testid="stNumberInputContainer"], [data-testid="stMain"] [data-baseweb="select"] > div {{ border-radius: 10px !important; }}
+[data-testid="stMain"] .block-container {{ position: relative; z-index: 1; }}
 /* ---- giriş animasyonları: sayfa açılınca bir kez, kısa ---- */
 @keyframes nl-rise {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: none; }} }}
 @keyframes nl-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
@@ -202,14 +213,46 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .cards .card {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) both; transition: transform .18s ease, box-shadow .18s ease; }}
 .cards .card:nth-child(2) {{ animation-delay: .07s; }} .cards .card:nth-child(3) {{ animation-delay: .14s; }}
 .cards .card:nth-child(4) {{ animation-delay: .21s; }} .cards .card:nth-child(n+5) {{ animation-delay: .28s; }}
-.cards .card:hover {{ transform: translateY(-3px); box-shadow: 0 1px 2px rgba(14,27,46,.05), 0 18px 34px -16px rgba(14,27,46,.32); }}
+.cards .card:hover {{ transform: translateY(-3px); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent), 0 24px 40px -22px color-mix(in srgb, var(--c) 60%, transparent); }}
 .sidecard .bar i {{ transform-origin: left; animation: nl-grow .6s cubic-bezier(.2,.8,.2,1) .15s both; }}
 .ledger .share, .ledger .errbar {{ transform-origin: left; animation: nl-grow .55s cubic-bezier(.2,.8,.2,1) .1s both; }}
 [data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ animation: nl-fade .5s ease both; }}
 .callout {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) .1s both; }}
 [data-testid="InputInstructions"] {{ display: none !important; }}
+/* ---- nasıl çalışır ---- */
+.hw-flow {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: .4rem 0 .6rem 0; }}
+.hw-step {{ position: relative; background: {SURFACE}; border: 1px solid {LINE}; border-radius: 18px; padding: 16px 18px 16px 18px;
+           animation: nl-rise .55s cubic-bezier(.2,.8,.2,1) var(--d) both; box-shadow: 0 22px 44px -28px rgba(0,0,0,.85); }}
+.hw-step:not(:last-child)::after {{ content: ""; position: absolute; right: -13px; top: 58px; width: 10px; height: 10px; border-top: 2px solid #12B5A6;
+           border-right: 2px solid #12B5A6; transform: rotate(45deg); z-index: 2; }}
+.hw-n {{ width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #12B5A6, #2F80ED); color: #fff; font-family: {DISPLAY};
+        font-weight: 700; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }}
+.hw-vis {{ height: 64px; margin-bottom: 12px; display: flex; align-items: flex-end; }}
+.hw-spark {{ width: 100%; height: 54px; }} .hw-spark svg {{ width: 100%; height: 100%; }}
+.hw-spark polyline {{ stroke-dasharray: 900; stroke-dashoffset: 900; animation: hw-draw 1.6s ease .3s forwards; }}
+@keyframes hw-draw {{ to {{ stroke-dashoffset: 0; }} }}
+.hw-model {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; width: 100%; }}
+.hw-model span {{ height: 26px; border-radius: 6px; background: #12B5A6; opacity: .15; animation: hw-pulse 1.8s ease-in-out var(--d) infinite; }}
+@keyframes hw-pulse {{ 0%, 100% {{ opacity: .12; }} 50% {{ opacity: .75; }} }}
+.hw-stack {{ display: flex; align-items: flex-end; gap: 6px; height: 60px; width: 100%; }}
+.hw-stack i {{ flex: 1; border-radius: 5px 5px 2px 2px; transform-origin: bottom; animation: nl-up .6s cubic-bezier(.2,.8,.2,1) .5s both; }}
+.hw-bill b {{ font-family: {DISPLAY}; font-size: 2.4rem; color: #fff; line-height: 1; }} .hw-bill small {{ color: {MUTED}; margin-left: 6px; }}
+.hw-t {{ font-family: {DISPLAY}; font-size: 1.15rem; font-weight: 700; color: {INK}; }}
+.hw-x {{ color: #B9C7DA; font-size: .9rem; line-height: 1.45; margin: 4px 0 10px 0; min-height: 3.9em; }}
+.hw-f {{ display: inline-block; color: #5EE6D6; background: rgba(18,181,166,.12); border-radius: 999px; padding: 2px 10px; font-size: .78rem; }}
+.hw-day {{ color: {MUTED}; font-size: .92rem; text-align: right; }}
+.hw-houses {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: .5rem 0 .4rem 0; }}
+.hw-house {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 16px; padding: 14px 16px; opacity: .55; }}
+.hw-house.on {{ opacity: 1; border-color: #12B5A6; box-shadow: 0 0 0 1px rgba(18,181,166,.35), 0 20px 40px -26px rgba(18,181,166,.6); }}
+.hw-house b {{ display: block; font-family: {DISPLAY}; font-size: 1.4rem; color: #fff; }}
+.hw-house span {{ display: inline-block; font-size: .76rem; border-radius: 999px; padding: 1px 9px; margin: 4px 0 8px 0; background: rgba(255,255,255,.08); color: #C9D5E4; }}
+.hw-house.görülmeyen span {{ background: rgba(18,181,166,.2); color: #5EE6D6; }}
+.hw-house.doğrulama span {{ background: rgba(47,128,237,.22); color: #9CC3FF; }}
+.hw-house small {{ display: block; color: {MUTED}; font-size: .8rem; line-height: 1.35; }}
+.hw-note {{ color: {MUTED}; font-size: .86rem; margin-top: .3rem; }}
+@media (max-width: 1000px) {{ .hw-flow {{ grid-template-columns: repeat(2, 1fr); }} .hw-houses {{ grid-template-columns: repeat(2, 1fr); }} .hw-step::after {{ display: none; }} }}
 /* ---- sayfa başlık bandı ---- */
-.pg-hero {{ position: relative; overflow: hidden; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
+.pg-hero {{ border: 1px solid rgba(255,255,255,.07); position: relative; overflow: hidden; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
            background: radial-gradient(600px 260px at 12% 0%, rgba(19,74,87,.9), rgba(19,74,87,0) 70%), linear-gradient(120deg, #0E1B2E 0%, #0F2A42 60%, #0B3B45 100%);
            border-radius: 20px; padding: 26px 30px 22px 30px; margin: 0 0 1.1rem 0; box-shadow: 0 24px 48px -30px rgba(14,27,46,.7);
            animation: nl-rise .5s cubic-bezier(.2,.8,.2,1) both; }}
@@ -225,18 +268,18 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .sec {{ display: flex; align-items: center; gap: 10px; font-size: 1.3rem; }}
 .sec::before {{ content: ""; width: 6px; height: 20px; border-radius: 3px; background: linear-gradient(180deg, #12B5A6, #2F80ED); }}
 [data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"], .strip, table.ledger {{ border-radius: 16px !important;
-        box-shadow: 0 1px 2px rgba(14,27,46,.04), 0 14px 30px -22px rgba(14,27,46,.35); }}
+        box-shadow: 0 22px 44px -28px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.04); }}
 .strip {{ overflow: hidden; }}
 .strip .cell {{ position: relative; }}
 .strip .cell::after {{ content: ""; position: absolute; left: 26px; right: 26px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0;
         background: linear-gradient(90deg, #12B5A6, #2F80ED); transform: scaleX(0); transform-origin: left; transition: transform .35s ease; }}
 .strip .cell:hover::after {{ transform: scaleX(1); }}
-.callout {{ border-left: none; border-radius: 14px; background: linear-gradient(90deg, rgba(18,181,166,.12), rgba(18,181,166,.02) 70%), #fff;
+.callout {{ border-left: none; border-radius: 14px; background: linear-gradient(90deg, rgba(18,181,166,.12), rgba(18,181,166,.02) 70%), {SURFACE};
         box-shadow: inset 4px 0 0 #12B5A6; }}
 .ledger tbody tr {{ animation: nl-fade .45s ease both; }}
 .ledger tr.oth td {{ color: {MUTED}; font-style: italic; }}
 .ledger .muted {{ color: {MUTED}; }}
-.ledger tbody tr:hover td {{ background: #F6F9FC; }}
+.ledger tbody tr:hover td {{ background: {SURFACE2}; }}
 /* kaydırınca beliren öğeler (motion betiği sınıf ekler) */
 .nl-reveal {{ opacity: 0; transform: translateY(16px); }}
 .nl-reveal.nl-in {{ opacity: 1; transform: none; transition: opacity .55s ease, transform .55s cubic-bezier(.2,.8,.2,1); }}
@@ -245,8 +288,6 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
         transition: transform .15s ease, box-shadow .15s ease !important; }}
 .stButton button:hover, [data-testid="stFormSubmitButton"] button:hover {{ transform: translateY(-1px); }}
 @media (max-width: 900px) {{ .pg-bars {{ display: none; }} .pg-hero .nilm-title {{ font-size: 2rem; }} }}
-@media (prefers-reduced-motion: reduce) {{ .nl-reveal {{ opacity: 1 !important; transform: none !important; }} }}
-@media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ animation: none !important; transition: none !important; }} }}
 @media (max-width: 720px) {{ .nilm-title {{ font-size: 1.7rem; }} .strip .num {{ font-size: 2rem; }} }}
 </style>
 """
@@ -256,7 +297,7 @@ _MOTION = r"""
 <script>
 (() => {
   if (window.__nilmMotion) return; window.__nilmMotion = true;
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduce = false;  // hareketler kısa ve küçük; işletim sistemi ayarından bağımsız oynar
   const last = new Map();               // data-k -> son gösterilen değer (geçişler oradan başlar)
   const NUM = /^([+\u2212-]?)([\d,]*\.?\d+)$/;
   const fmt = (v, dec, sign) => (sign && v > 0 ? '+' : '') + v.toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});

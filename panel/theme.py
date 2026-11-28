@@ -172,6 +172,22 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .mleg i {{ display: inline-block; width: 18px; height: 4px; border-radius: 3px; }}
 .mleg i.real {{ height: 10px; width: 14px; border-radius: 3px; opacity: .5; }}
 [data-testid="stPopover"] button, [data-testid="stPopoverButton"] {{ border-radius: 10px; }}
+/* ---- giriş animasyonları: sayfa açılınca bir kez, kısa ---- */
+@keyframes nl-rise {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: none; }} }}
+@keyframes nl-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+@keyframes nl-grow {{ from {{ transform: scaleX(0); }} to {{ transform: scaleX(1); }} }}
+.nilm-title {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) both; }}
+.nilm-title + div .chip, .nilm-sub + div .chip {{ animation: nl-fade .4s ease .12s both; }}
+.strip {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) .08s both; }}
+.cards .card {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) both; transition: transform .18s ease, box-shadow .18s ease; }}
+.cards .card:nth-child(2) {{ animation-delay: .07s; }} .cards .card:nth-child(3) {{ animation-delay: .14s; }}
+.cards .card:nth-child(4) {{ animation-delay: .21s; }} .cards .card:nth-child(n+5) {{ animation-delay: .28s; }}
+.cards .card:hover {{ transform: translateY(-3px); box-shadow: 0 1px 2px rgba(14,27,46,.05), 0 18px 34px -16px rgba(14,27,46,.32); }}
+.sidecard .bar i {{ transform-origin: left; animation: nl-grow .6s cubic-bezier(.2,.8,.2,1) .15s both; }}
+.ledger .share, .ledger .errbar {{ transform-origin: left; animation: nl-grow .55s cubic-bezier(.2,.8,.2,1) .1s both; }}
+[data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ animation: nl-fade .5s ease both; }}
+.callout {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) .1s both; }}
+@media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ animation: none !important; transition: none !important; }} }}
 @media (max-width: 720px) {{ .nilm-title {{ font-size: 1.7rem; }} .strip .num {{ font-size: 2rem; }} }}
 </style>
 """
@@ -293,7 +309,7 @@ def model_pill(m: str) -> str:
 
 def side_user(name: str, sub: str):
     st.markdown(f'<div class="sideuser"><span class="av">{html.escape(name[:1].upper())}</span>'
-                f'<span><b>{html.escape(name)}</b><br><small>{html.escape(sub)}</small></span></div>', unsafe_allow_html=True)
+                f'<span><b>{html.escape(name[:1].upper() + name[1:])}</b><br><small>{html.escape(sub)}</small></span></div>', unsafe_allow_html=True)
 
 
 def side_pills(items):

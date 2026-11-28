@@ -56,9 +56,14 @@ def dt() -> int:
 
 
 def house_name(h) -> str:
+    """Giriş yapmış kullanıcıya kendi evi "Kamil'in evi" diye, misafire veri setindeki adıyla gösterilir."""
     if h is None:
         return "Tüm evler"
     h = int(h)
+    from panel import auth
+    user = auth.current() or {}
+    if user.get("house") == h and user.get("name") and user.get("name") != "Misafir":
+        return f"{auth.possessive(user['name'])} evi"
     if h in config.UNSEEN_HOUSES:
         return f"Ev {h} · görülmeyen"
     if h in getattr(config, "VAL_HOUSES", []):
@@ -178,7 +183,7 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
                             f"{bill['Gerçek (kWh)'].sum():,.1f} kWh",
                             [(theme.color(a), v) for a, v in bill["Gerçek (TL)"].items()])
         if user:
-            theme.side_user(user["name"], house_name(user.get("house")))
+            theme.side_user(user["name"], house_name(user.get("house")) if user.get("house") is not None else "Tüm evler")
             if st.button("Çıkış yap", key="sb_logout", icon=":material/logout:", width="stretch"):
                 auth.logout()
                 st.rerun()

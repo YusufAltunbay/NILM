@@ -34,3 +34,12 @@ def test_bill_saved_and_migrated(tmp_path):
     assert auth.verify("ayse", "parola1", db=db)["bill"] == 1300
     auth.set_bill("ayse", 0, db=db)
     assert auth.verify("ayse", "parola1", db=db)["bill"] is None
+
+
+def test_possessive():
+    assert auth.possessive("kamil") == "Kamil'in"
+    assert auth.possessive("ali") == "Ali'nin"
+    assert auth.possessive("murat") == "Murat'ın"
+    assert auth.possessive("oğuz") == "Oğuz'un"
+    assert auth.possessive("gül") == "Gül'ün"
+    assert auth.possessive("ayşe") == "Ayşe'nin"

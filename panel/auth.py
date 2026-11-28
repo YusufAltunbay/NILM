@@ -83,30 +83,36 @@ _LOGIN_CSS = """
                      linear-gradient(160deg, #0B1626 0%, #0F2A42 55%, #0B3B45 100%) !important; }
 .block-container { max-width: 1240px !important; padding-top: 0 !important; }
 /* arkadaki yarı saydam logo: faturayı dilimleyen sütun */
-.lg-hero { position: relative; z-index: 1; min-height: 92vh; display: flex; flex-direction: column; justify-content: center; padding-right: 2rem; }
-.lg-brand { display: flex; align-items: center; gap: 12px; color: #fff; margin-bottom: 2.2rem; }
-.lg-brand b { font-family: 'Segoe UI Variable Display','Segoe UI',sans-serif; font-size: 1.6rem; letter-spacing: .02em; }
+.lg-hero { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 2rem 2rem 2rem 0; }
+.lg-brand { display: flex; align-items: center; gap: 12px; color: #fff; margin-bottom: 1.6rem; }
+.lg-brand b { font-family: 'Bricolage','Segoe UI',sans-serif; font-size: 1.6rem; letter-spacing: .02em; }
 .lg-brand span { color: #8FA3BF; font-size: .95rem; }
-.lg-hero h1 { font-family: 'Segoe UI Variable Display','Segoe UI',sans-serif; color: #fff !important; font-size: clamp(2.2rem, 3.6vw, 3.4rem);
-              font-weight: 700; line-height: 1.08; letter-spacing: -0.025em; margin: 0 0 1rem 0; max-width: 15ch; padding: 0; }
-.lg-hero p { color: #B9C7DA; font-size: 1.08rem; line-height: 1.6; max-width: 46ch; margin: 0 0 2.2rem 0; }
+.lg-hero h1 { font-family: 'Bricolage','Segoe UI',sans-serif; color: #fff !important; font-size: clamp(2.6rem, 4.6vw, 4.4rem);
+              font-weight: 800; line-height: .98; letter-spacing: -0.035em; margin: 0 0 1.2rem 0; max-width: 11ch; padding: 0 !important; text-wrap: balance;
+              animation: lg-in .6s cubic-bezier(.2,.8,.2,1) both; }
+/* başlığın altında faturanın renkli dilimleri, soldan sağa dolar */
+.lg-rule { display: flex; height: 6px; width: min(420px, 80%); border-radius: 4px; overflow: hidden; gap: 3px; margin: 0 0 1.4rem 0; }
+.lg-rule i { display: block; height: 100%; transform-origin: left; animation: lg-x .5s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes lg-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.lg-hero p { animation: lg-in .6s cubic-bezier(.2,.8,.2,1) .1s both; color: #B9C7DA; font-size: 1.08rem; line-height: 1.6; max-width: 46ch; margin: 0 0 1.6rem 0; }
 .lg-demo { display: flex; align-items: flex-end; gap: 26px; }
-.lg-col { width: 74px; height: 230px; display: flex; flex-direction: column-reverse; border-radius: 10px; overflow: hidden;
+.lg-col { width: 58px; height: 150px; display: flex; flex-direction: column-reverse; border-radius: 10px; overflow: hidden;
           background: rgba(255,255,255,.05); box-shadow: 0 20px 40px -20px rgba(0,0,0,.6); }
 .lg-col i { display: block; width: 100%; transform-origin: bottom; animation: lg-grow .55s cubic-bezier(.2,.8,.2,1) both; }
 .lg-col i + i { border-bottom: 2px solid #0F2A42; }
-.lg-keys { display: flex; flex-direction: column; gap: 9px; padding-bottom: 6px; }
+.lg-keys { display: flex; flex-direction: column; gap: 5px; padding-bottom: 6px; }
 .lg-keys div { color: #D5E0EE; font-size: .92rem; display: flex; align-items: center; gap: 9px; animation: lg-fade .5s ease both; }
 .lg-keys i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
-.lg-facts { display: flex; gap: 34px; margin-top: 2.4rem; color: #8FA3BF; font-size: .9rem; }
-.lg-facts b { display: block; color: #fff; font-family: 'Segoe UI Variable Display','Segoe UI',sans-serif; font-size: 1.7rem; line-height: 1.1; }
+.lg-facts { display: flex; gap: 30px; margin-top: 1.6rem; color: #8FA3BF; font-size: .9rem; }
+.lg-facts b { display: block; color: #fff; font-family: 'Bricolage','Segoe UI',sans-serif; font-size: 2rem; font-weight: 700; line-height: 1.1; }
+.lg-facts div { padding-left: 14px; border-left: 2px solid rgba(255,255,255,.14); }
 @keyframes lg-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes lg-fade { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
 @keyframes lg-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 /* form kartı */
-.st-key-loginbox { position: relative; z-index: 1; margin-top: 18vh; background: #fff; border-radius: 20px; padding: 26px 28px 22px 28px !important;
+.st-key-loginbox { position: relative; z-index: 1; background: #fff; border-radius: 20px; padding: 26px 28px 22px 28px !important;
                    box-shadow: 0 30px 70px -30px rgba(0,0,0,.65); animation: lg-in .5s ease .15s both; }
-.st-key-loginbox h3 { font-family: 'Segoe UI Variable Display','Segoe UI',sans-serif; font-size: 1.35rem; margin: 0 0 .2rem 0; padding: 0; color: #0E1B2E; }
+.st-key-loginbox h3 { font-family: 'Bricolage','Segoe UI',sans-serif; font-size: 1.35rem; margin: 0 0 .2rem 0; padding: 0; color: #0E1B2E; }
 .st-key-loginbox [data-testid="stForm"] { border: none; padding: 0; }
 .st-key-guest button { background: transparent !important; color: #D5E0EE !important; border: 1px solid rgba(255,255,255,.25) !important; }
 .st-key-guest button:hover { border-color: #12B5A6 !important; color: #fff !important; }
@@ -139,16 +145,19 @@ def _hero(pred):
                    for k, a in enumerate(apps))
     keys = "".join(f'<div style="animation-delay:{.35 + k * .16:.2f}s"><i style="background:{theme.color(a)}"></i>{html.escape(theme.tr(a))}'
                    f' <span style="color:#8FA3BF">%{e[a] / tot * 100:.0f}</span></div>' for k, a in enumerate(reversed(apps)))
+    rule = "".join(f'<i style="background:{theme.color(a)};width:{e[a] / tot * 100:.1f}%;animation-delay:{.2 + k * .08:.2f}s"></i>'
+                   for k, a in enumerate(apps))
     facts = [(pred["appliance"].nunique(), "cihaz"), (pred["model"].nunique(), "model"), (pred["house"].nunique(), "ev")]
     fact_html = "".join(f"<div><b>{n}</b>{t}</div>" for n, t in facts)
     svg = base64.b64encode((Path(__file__).parent / "assets" / "logo.svg").read_bytes()).decode()
     # arkadaki yarı saydam büyük logo
-    st.markdown("<style>.stApp::before { content: ''; position: fixed; right: -5vw; bottom: -2vh; width: 70vw; height: 20vw; z-index: 0;"
+    st.markdown("<style>.stApp::before { content: ''; position: fixed; right: -5vw; bottom: -2vh; width: 60vw; height: 15vw; z-index: 0;"
                 f"background: url(data:image/svg+xml;base64,{svg}) no-repeat right bottom / contain; opacity: .07; pointer-events: none; }}"
                 "@media (max-width: 900px) { .stApp::before { display: none; } }</style>", unsafe_allow_html=True)
     st.markdown(f'''<div class="lg-hero">
   <div class="lg-brand"><img src="data:image/svg+xml;base64,{svg}" style="height:46px"></div>
-  <h1>Faturanı cihaz cihaz gör</h1>
+  <h1>Faturanı cihaz cihaz gör.</h1>
+  <div class="lg-rule">{rule}</div>
   <p>Evin tek sayacından ölçülen tüketimi, makine öğrenmesi modelleri buzdolabı, çamaşır makinesi, su ısıtıcısı gibi cihazlara ayırır.</p>
   <div class="lg-demo"><div class="lg-col">{segs}</div><div class="lg-keys">{keys}</div></div>
   <div class="lg-facts">{fact_html}</div>
@@ -162,7 +171,7 @@ def login_page():
     pred, _, _ = data.load()
     houses = sorted(int(h) for h in pred["house"].unique())
     home = next((h for h in data.config.UNSEEN_HOUSES if h in houses), houses[0])  # yeni hesaplara verilen örnek ev
-    left, right = st.columns([1.25, 1], gap="large")
+    left, right = st.columns([1.25, 1], gap="large", vertical_alignment="center")
     with left:
         _hero(pred)
     with right:

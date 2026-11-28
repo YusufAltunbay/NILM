@@ -10,7 +10,7 @@ pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
 theme.page_header("Tasarruf senaryosu", chips=[data.house_name(house), f"{price:.2f} TL/kWh"])
 model = data.one_model(models, "model_tasarruf")
-bill = data.bill_table(pred, model, house, price)
+bill = data.bill_table(pred, model, house, price, other=True, monthly=True)
 if bill.empty:
     st.error("Bu ev için veri yok.")
     st.stop()
@@ -21,26 +21,35 @@ if "ts_bill" not in st.session_state:
 
 
 def save_bill():
-    b = st.session_state["ts_bill"]
-    if user.get("name") and user.get("house") is not None:  # misafir değilse kalıcı kaydet
+    b = float(st.session_state.get("ts_bill_in", 0.0))
+    st.session_state["ts_bill"] = b
+    if user.get("name") and user.get("house") is not None:  # misafir değilse hesaba kaydet
         auth.set_bill(user["name"], b)
         st.session_state["user"]["bill"] = b or None
+        st.toast(f"Faturan kaydedildi: {b:,.0f} TL" if b else "Fatura kaldırıldı, örnek ev kullanılıyor", icon=":material/check_circle:")
+    else:
+        st.toast(f"Hesaplar {b:,.0f} TL faturaya göre" if b else "Örnek evin faturası kullanılıyor", icon=":material/check_circle:")
 
 
-house_tl = data.house_month_kwh(house) * price
-b1, b2 = st.columns([1, 2], vertical_alignment="bottom")
+house_tl = float(bill["Gerçek (TL)"].sum())  # örnek evin aylık sayaç faturası
+b1, b2 = st.columns([1, 2], vertical_alignment="center")
 with b1:
-    my_bill = st.number_input("Aylık elektrik faturan (TL)", 0.0, 100000.0, step=50.0, key="ts_bill", on_change=save_bill,
-                              help="Faturandaki toplam tutar. Boş (0) bırakırsan örnek evin tutarları kullanılır.")
-m = savings.monthly(bill)
-other = 0.0
+    with st.form("bill_form", border=False, enter_to_submit=True):
+        st.session_state.setdefault("ts_bill_in", st.session_state["ts_bill"])
+        f1, f2 = st.columns([2.2, 1], vertical_alignment="bottom")
+        f1.number_input("Aylık elektrik faturan (TL)", 0.0, 100000.0, step=50.0, key="ts_bill_in",
+                        help="Faturandaki toplam tutar. 0 bırakırsan örnek evin tutarları kullanılır. Enter ya da Uygula.")
+        f2.form_submit_button("Uygula", type="primary", icon=":material/bolt:", on_click=save_bill, width="stretch")
+my_bill = float(st.session_state["ts_bill"])
+m_all = savings.monthly(bill)
+m = m_all.drop(index="other", errors="ignore")
+other = max(0.0, house_tl - float(m["TL"].sum()))  # sayaç faturasından cihaz tahminleri çıkınca kalan
 if my_bill > 0:
     m, other = savings.fit_to_bill(m, house_tl, my_bill, price)
-    note = (f"Cihaz payları {data.house_name(house).split(' ·')[0]} ölçümlerinden tahmin edildi: bu {len(m)} cihaz "
+    note = (f"Cihaz payları örnek evin ölçümlerinden tahmin edildi: bu {len(m)} cihaz "
             f"faturanın yaklaşık **%{m['TL'].sum() / my_bill * 100:.0f}**'i, kalan **{other:,.0f} TL** diğer cihazlar "
             "(aydınlatma, TV, ısıtma...).")
 else:
-    other = max(0.0, house_tl - float(m["TL"].sum()))
     note = (f"Örnek evin aylık faturası yaklaşık **{house_tl:,.0f} TL**; bunun **{m['TL'].sum():,.0f} TL**'si bu "
             f"{len(m)} cihaz. Kendi faturanı girersen hesaplar senin evine göre ölçeklenir.")
 with b2:

@@ -1,6 +1,8 @@
 """Panelin görünümü: renkler, CSS ve ortak bileşenler."""
+import base64
 import html
 import zlib
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -61,10 +63,30 @@ def palette(appliances):
     return [tr(a) for a in appliances], [color(a) for a in appliances]
 
 
+_FONT_DIR = Path(__file__).parent / "assets" / "fonts"
+
+
+def _font_faces() -> str:
+    """Başlık yazı tipi (Bricolage Grotesque, OFL) CSS'e gömülü; internet gerektirmez."""
+    out = ""
+    for f, rng in (("bricolage-grotesque-latin-wght-normal.woff2", "U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2212"),
+                   ("bricolage-grotesque-latin-ext-wght-normal.woff2", "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+1E00-1E9F,U+20A0-20C0")):
+        p = _FONT_DIR / f
+        if p.exists():
+            b = base64.b64encode(p.read_bytes()).decode()
+            out += (f"@font-face {{ font-family: 'Bricolage'; font-style: normal; font-weight: 200 800; font-display: swap; "
+                    f"src: url(data:font/woff2;base64,{b}) format('woff2'); unicode-range: {rng}; }}\n")
+    return out
+
+
+DISPLAY = "'Bricolage', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif"
+
 _CSS = f"""
 <style>
+{_font_faces()}
 .stApp, [data-testid="stSidebar"] {{ font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; }}
-.stApp h1, .stApp h2, .stApp h3, .nilm-title, .num {{ font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif; }}
+.stApp h1, .stApp h2, .stApp h3, .nilm-title, .num, .sec, .card .big, .sidecard .v, .card .rk {{ font-family: {DISPLAY} !important; }}
+.stApp {{ background: radial-gradient(900px 420px at 85% -60px, rgba(18,181,166,.10), rgba(18,181,166,0) 70%), #F3F5F9; }}
 .block-container {{ padding-top: 2.4rem; padding-bottom: 3rem; max-width: 1200px; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 .stDeployButton, [data-testid="stAppDeployButton"], [data-testid="stToolbarActions"], [data-testid="stMainMenu"], #MainMenu, footer {{ display: none !important; }}
@@ -176,8 +198,6 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 @keyframes nl-rise {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: none; }} }}
 @keyframes nl-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
 @keyframes nl-grow {{ from {{ transform: scaleX(0); }} to {{ transform: scaleX(1); }} }}
-.nilm-title {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) both; }}
-.nilm-title + div .chip, .nilm-sub + div .chip {{ animation: nl-fade .4s ease .12s both; }}
 .strip {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) .08s both; }}
 .cards .card {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) both; transition: transform .18s ease, box-shadow .18s ease; }}
 .cards .card:nth-child(2) {{ animation-delay: .07s; }} .cards .card:nth-child(3) {{ animation-delay: .14s; }}
@@ -187,22 +207,126 @@ img[data-testid="stSidebarLogo"] {{ height: 54px !important; width: auto !import
 .ledger .share, .ledger .errbar {{ transform-origin: left; animation: nl-grow .55s cubic-bezier(.2,.8,.2,1) .1s both; }}
 [data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"] {{ animation: nl-fade .5s ease both; }}
 .callout {{ animation: nl-rise .45s cubic-bezier(.2,.8,.2,1) .1s both; }}
+[data-testid="InputInstructions"] {{ display: none !important; }}
+/* ---- sayfa başlık bandı ---- */
+.pg-hero {{ position: relative; overflow: hidden; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
+           background: radial-gradient(600px 260px at 12% 0%, rgba(19,74,87,.9), rgba(19,74,87,0) 70%), linear-gradient(120deg, #0E1B2E 0%, #0F2A42 60%, #0B3B45 100%);
+           border-radius: 20px; padding: 26px 30px 22px 30px; margin: 0 0 1.1rem 0; box-shadow: 0 24px 48px -30px rgba(14,27,46,.7);
+           animation: nl-rise .5s cubic-bezier(.2,.8,.2,1) both; }}
+.pg-hero .nilm-title {{ color: #fff !important; font-size: 2.6rem; font-weight: 700; letter-spacing: -0.03em; margin: 0 0 .5rem 0; padding: 0; text-wrap: balance; animation: none; }}
+.pg-hero .nilm-sub {{ color: #B9C7DA; margin-bottom: .7rem; }}
+.pg-chips .chip {{ background: rgba(255,255,255,.10); color: #E6ECF5; border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(4px); animation: nl-fade .4s ease .15s both; }}
+.pg-bars {{ display: flex; align-items: flex-end; gap: 7px; height: 92px; opacity: .8; flex: none; }}
+.pg-bars span {{ display: flex; flex-direction: column-reverse; width: 16px; border-radius: 4px; overflow: hidden; transform-origin: bottom;
+                animation: nl-up .6s cubic-bezier(.2,.8,.2,1) both; }}
+.pg-bars i {{ display: block; width: 100%; }}
+.pg-bars i + i {{ border-bottom: 1px solid #0F2A42; }}
+@keyframes nl-up {{ from {{ transform: scaleY(0); }} to {{ transform: scaleY(1); }} }}
+.sec {{ display: flex; align-items: center; gap: 10px; font-size: 1.3rem; }}
+.sec::before {{ content: ""; width: 6px; height: 20px; border-radius: 3px; background: linear-gradient(180deg, #12B5A6, #2F80ED); }}
+[data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"], .strip, table.ledger {{ border-radius: 16px !important;
+        box-shadow: 0 1px 2px rgba(14,27,46,.04), 0 14px 30px -22px rgba(14,27,46,.35); }}
+.strip {{ overflow: hidden; }}
+.strip .cell {{ position: relative; }}
+.strip .cell::after {{ content: ""; position: absolute; left: 26px; right: 26px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0;
+        background: linear-gradient(90deg, #12B5A6, #2F80ED); transform: scaleX(0); transform-origin: left; transition: transform .35s ease; }}
+.strip .cell:hover::after {{ transform: scaleX(1); }}
+.callout {{ border-left: none; border-radius: 14px; background: linear-gradient(90deg, rgba(18,181,166,.12), rgba(18,181,166,.02) 70%), #fff;
+        box-shadow: inset 4px 0 0 #12B5A6; }}
+.ledger tbody tr {{ animation: nl-fade .45s ease both; }}
+.ledger tr.oth td {{ color: {MUTED}; font-style: italic; }}
+.ledger .muted {{ color: {MUTED}; }}
+.ledger tbody tr:hover td {{ background: #F6F9FC; }}
+/* kaydırınca beliren öğeler (motion betiği sınıf ekler) */
+.nl-reveal {{ opacity: 0; transform: translateY(16px); }}
+.nl-reveal.nl-in {{ opacity: 1; transform: none; transition: opacity .55s ease, transform .55s cubic-bezier(.2,.8,.2,1); }}
+.stButton button[kind="primary"], [data-testid="stFormSubmitButton"] button[kind="primary"], [data-testid="stBaseButton-primaryFormSubmit"] {{
+        background: linear-gradient(135deg, #12B5A6, #0E9C8F) !important; border: none !important; box-shadow: 0 8px 18px -10px rgba(18,181,166,.9);
+        transition: transform .15s ease, box-shadow .15s ease !important; }}
+.stButton button:hover, [data-testid="stFormSubmitButton"] button:hover {{ transform: translateY(-1px); }}
+@media (max-width: 900px) {{ .pg-bars {{ display: none; }} .pg-hero .nilm-title {{ font-size: 2rem; }} }}
+@media (prefers-reduced-motion: reduce) {{ .nl-reveal {{ opacity: 1 !important; transform: none !important; }} }}
 @media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ animation: none !important; transition: none !important; }} }}
 @media (max-width: 720px) {{ .nilm-title {{ font-size: 1.7rem; }} .strip .num {{ font-size: 2rem; }} }}
 </style>
 """
 
 
+_MOTION = r"""
+<script>
+(() => {
+  if (window.__nilmMotion) return; window.__nilmMotion = true;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const last = new Map();               // data-k -> son gösterilen değer (geçişler oradan başlar)
+  const NUM = /^([+\u2212-]?)([\d,]*\.?\d+)$/;
+  const fmt = (v, dec, sign) => (sign && v > 0 ? '+' : '') + v.toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+  function count(el) {
+    const t = el.firstChild;
+    if (!t || t.nodeType !== 3) return;
+    const raw = t.nodeValue.trim();
+    if (raw === el.__shown) return;     // kendi yazdığımız değer
+    const m = raw.match(NUM);
+    if (!m) return;
+    const sign = m[1] === '+', neg = m[1] === '-' || m[1] === '\u2212';
+    const to = parseFloat(m[2].replace(/,/g, '')) * (neg ? -1 : 1);
+    const dec = (m[2].split('.')[1] || '').length;
+    const key = (el.dataset.k || '') + location.pathname;
+    const from = last.has(key) ? last.get(key) : 0;
+    last.set(key, to);
+    if (reduce || from === to) { el.__shown = raw; return; }
+    const t0 = performance.now(), dur = 750;
+    const step = now => {
+      const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      const s = k < 1 ? fmt(from + (to - from) * e, dec, sign) : raw;
+      el.__shown = s; t.nodeValue = s;
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('nl-in'); io.unobserve(e.target); }
+  }), {rootMargin: '0px 0px -6% 0px'});
+  const REVEAL = '[data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"], table.ledger, .cards, [data-testid="stDataFrame"]';
+  function scan() {
+    document.querySelectorAll('.strip .num, .card .big, .sidecard .v').forEach(count);
+    if (reduce) return;
+    document.querySelectorAll(REVEAL).forEach(el => {
+      if (el.__rv) return; el.__rv = true;
+      const r = el.getBoundingClientRect();
+      if (r.top < innerHeight * 0.92) return;          // ilk ekranda görünenler zaten açılış animasyonuyla geliyor
+      el.classList.add('nl-reveal'); io.observe(el);
+    });
+  }
+  let q = false;
+  new MutationObserver(() => { if (!q) { q = true; requestAnimationFrame(() => { q = false; scan(); }); } })
+    .observe(document.body, {childList: true, subtree: true, characterData: true});
+  scan();
+})();
+</script>
+"""
+
+
 def inject():
-    """Tüm sayfalar için CSS (app.py bir kez çağırır)."""
+    """Tüm sayfalar için CSS ve küçük hareket betiği (app.py bir kez çağırır)."""
     st.markdown(_CSS, unsafe_allow_html=True)
+    st.html(_MOTION, unsafe_allow_javascript=True)
 
 
 def page_header(title: str, sub: str = "", chips=(), demo: bool = False):
+    """Sayfa başlığı: koyu bant, sağda giriş ekranındaki fatura sütunlarının küçük bir yankısı."""
     chip_html = "".join(f'<span class="chip">{html.escape(c)}</span>' for c in chips)
-    st.markdown(f'<h1 class="nilm-title">{html.escape(title)}</h1>'
-                f'{f"<p class=nilm-sub>{html.escape(sub)}</p>" if sub else ""}<div>{chip_html}</div>',
-                unsafe_allow_html=True)
+    seed = zlib.crc32(title.encode())
+    cols = [c for _, c in APPLIANCES.values()][:5]
+    bars = ""
+    for k in range(9):  # her sayfada farklı ama sabit yükseklikler
+        segs = ""
+        for j, c in enumerate(cols):
+            h = 6 + (seed >> ((k * 5 + j) % 27) & 7) * 3
+            segs += f'<i style="background:{c};height:{h}px"></i>'
+        bars += f'<span style="animation-delay:{.05 * k:.2f}s">{segs}</span>'
+    st.markdown(f'<div class="pg-hero"><div class="pg-txt"><h1 class="nilm-title">{html.escape(title)}</h1>'
+                f'{f"<p class=nilm-sub>{html.escape(sub)}</p>" if sub else ""}<div class="pg-chips">{chip_html}</div></div>'
+                f'<div class="pg-bars" aria-hidden="true">{bars}</div></div>', unsafe_allow_html=True)
 
 
 def section(title: str, note: str = ""):
@@ -222,18 +346,27 @@ def strip(cells):
         unit = f"<small>{html.escape(c.get('unit', ''))}</small>" if c.get("unit") else ""
         cls = " ".join(x for x in ("num", c.get("tone", ""), "sm" if c.get("small") else "") if x)
         out += (f'<div class="cell"><div class="lab">{html.escape(c["lab"])}</div>'
-                f'<div class="{cls}">{c["num"]}{unit}</div><div class="sub">{html.escape(c.get("sub", ""))}</div></div>')
+                f'<div class="{cls}" data-k="{html.escape(c["lab"])}">{c["num"]}{unit}</div><div class="sub">{html.escape(c.get("sub", ""))}</div></div>')
     st.markdown(f'<div class="strip">{out}</div>', unsafe_allow_html=True)
 
 
-def bill_strip(real_tl, pred_tl, real_kwh, pred_kwh):
+def bill_strip(bill: pd.DataFrame):
+    """Fatura özeti. 'other' satırı varsa: sayaç toplamı, cihazların gerçek ve tahmin edilen tutarı."""
+    dev = bill.drop(index="other", errors="ignore")
+    real_tl, pred_tl = dev["Gerçek (TL)"].sum(), dev["Tahmin (TL)"].sum()
     diff = pred_tl - real_tl
     pct = (diff / real_tl * 100) if real_tl else 0.0
     tone = "ok" if abs(pct) < 5 else ("over" if diff > 0 else "under")
-    word = "fazla tahmin" if diff > 0 else "eksik tahmin"
-    strip([dict(lab="Gerçek fatura", num=f"{real_tl:,.2f}", unit="TL", sub=f"{real_kwh:,.2f} kWh"),
-           dict(lab="Tahmin edilen fatura", num=f"{pred_tl:,.2f}", unit="TL", sub=f"{pred_kwh:,.2f} kWh"),
-           dict(lab="Fark", num=f"{diff:+,.2f}", unit="TL", sub=f"%{abs(pct):.1f} {word}", tone=tone)])
+    word = "fazla" if diff > 0 else "eksik"
+    if "other" in bill.index:
+        total = bill["Gerçek (TL)"].sum()
+        strip([dict(lab="Toplam fatura (sayaç)", num=f"{total:,.2f}", unit="TL", sub=f"{bill['Gerçek (kWh)'].sum():,.1f} kWh"),
+               dict(lab=f"{len(dev)} cihazın gerçek payı", num=f"{real_tl:,.2f}", unit="TL", sub=f"faturanın %{real_tl / total * 100 if total else 0:.0f}'i"),
+               dict(lab="Modelin tahmini", num=f"{pred_tl:,.2f}", unit="TL", sub=f"{diff:+,.2f} TL, %{abs(pct):.1f} {word}", tone=tone)])
+        return
+    strip([dict(lab="Gerçek fatura", num=f"{real_tl:,.2f}", unit="TL", sub=f"{dev['Gerçek (kWh)'].sum():,.2f} kWh"),
+           dict(lab="Tahmin edilen fatura", num=f"{pred_tl:,.2f}", unit="TL", sub=f"{dev['Tahmin (kWh)'].sum():,.2f} kWh"),
+           dict(lab="Fark", num=f"{diff:+,.2f}", unit="TL", sub=f"%{abs(pct):.1f} {word} tahmin", tone=tone)])
 
 
 def callout(text_html: str):
@@ -242,7 +375,8 @@ def callout(text_html: str):
 
 
 def summary_sentence(bill: pd.DataFrame) -> str:
-    """Fatura tablosundan otomatik özet cümlesi (sunumda anlatılacak ana mesaj)."""
+    """Fatura tablosundan otomatik özet cümlesi (sunumda anlatılacak ana mesaj). 'Diğer' satırı hesaba katılmaz."""
+    bill = bill.drop(index="other", errors="ignore")
     real, pred = bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum()
     pct = (pred - real) / real * 100 if real else 0.0
     signed = bill["Tahmin (TL)"] - bill["Gerçek (TL)"]
@@ -260,19 +394,22 @@ def summary_sentence(bill: pd.DataFrame) -> str:
 
 def ledger(bill: pd.DataFrame):
     """Makbuz tarzı fatura kalemleri tablosu. bill: index=cihaz, bill_table sütunları."""
-    peak = max(bill["Hata (TL)"].max(), 1e-9)
+    dev = bill.drop(index="other", errors="ignore")
+    peak = max(dev["Hata (TL)"].max(), 1e-9)
     total_real = max(bill["Gerçek (TL)"].sum(), 1e-9)
     rows = ""
-    for a, r in bill.iterrows():
-        w = max(2, int(r["Hata (TL)"] / peak * 60))
+    for k, (a, r) in enumerate(bill.iterrows()):
         share = r["Gerçek (TL)"] / total_real * 100
-        rows += (f'<tr><td><span class="dot" style="background:{color(a)}"></span>{html.escape(tr(a))}</td>'
+        is_other = a == "other"
+        err = ('<span class="muted" title="Sayaçtan kalan enerji; hatası cihazlardaki hatanın tersidir">—</span>' if is_other else
+               f'<span class="errbar" style="width:{max(2, int(r["Hata (TL)"] / peak * 60))}px"></span>{r["Hata (TL)"]:,.2f}')
+        rows += (f'<tr class="{"oth" if is_other else ""}" style="animation-delay:{.04 * k:.2f}s">'
+                 f'<td><span class="dot" style="background:{color(a)}"></span>{html.escape(tr(a))}</td>'
                  f'<td><span class="share" style="width:{max(2, int(share * 1.6))}px;background:{color(a)}"></span>%{share:.1f}</td>'
-                 f'<td>{r["Gerçek (kWh)"]:,.2f}</td><td>{r["Gerçek (TL)"]:,.2f}</td><td>{r["Tahmin (TL)"]:,.2f}</td>'
-                 f'<td><span class="errbar" style="width:{w}px"></span>{r["Hata (TL)"]:,.2f}</td></tr>')
+                 f'<td>{r["Gerçek (kWh)"]:,.2f}</td><td>{r["Gerçek (TL)"]:,.2f}</td><td>{r["Tahmin (TL)"]:,.2f}</td><td>{err}</td></tr>')
     t = bill.sum(numeric_only=True)
     foot = (f'<tr><td>Toplam</td><td>%100</td><td>{t["Gerçek (kWh)"]:,.2f}</td><td>{t["Gerçek (TL)"]:,.2f}</td>'
-            f'<td>{t["Tahmin (TL)"]:,.2f}</td><td>{t["Hata (TL)"]:,.2f}</td></tr>')
+            f'<td>{t["Tahmin (TL)"]:,.2f}</td><td>{dev["Hata (TL)"].sum():,.2f}</td></tr>')
     st.markdown(f"""
 <table class="ledger"><thead><tr><th>Cihaz</th><th>Fatura payı</th><th>Gerçek tüketim (kWh)</th><th>Gerçek (TL)</th><th>Tahmin (TL)</th><th>Mutlak hata (TL)</th></tr></thead>
 <tbody>{rows}</tbody><tfoot>{foot}</tfoot></table>""", unsafe_allow_html=True)
@@ -297,7 +434,7 @@ def side_card(title: str, value: str, unit: str, sub: str, shares: list):
     tot = sum(v for _, v in shares) or 1.0
     bar = "".join(f'<i style="background:{c};width:{v / tot * 100:.1f}%"></i>' for c, v in shares if v > 0)
     st.markdown(f'<div class="sidecard"><div class="t">{html.escape(title)}</div>'
-                f'<div class="v">{html.escape(value)}<small>{html.escape(unit)}</small></div>'
+                f'<div class="v" data-k="side">{html.escape(value)}<small>{html.escape(unit)}</small></div>'
                 f'<div class="s">{html.escape(sub)}</div><div class="bar">{bar}</div></div>', unsafe_allow_html=True)
 
 
@@ -333,7 +470,7 @@ def cards(items, min_h: int = 0):
         big = ""
         if c.get("big"):
             unit = f"<small>{html.escape(c.get('unit', ''))}</small>" if c.get("unit") else ""
-            big = f'<div class="big">{c["big"]}{unit}</div><div class="big-sub">{html.escape(c.get("sub", ""))}</div>'
+            big = f'<div class="big" data-k="{html.escape(c["name"])}">{c["big"]}{unit}</div><div class="big-sub">{html.escape(c.get("sub", ""))}</div>'
         rows = "".join(f'<div class="kv"><span>{html.escape(k)}</span><b class="{"win" if w else ""}">{html.escape(v)}</b></div>'
                        for k, v, w in c.get("rows", []))
         out += (f'<div class="card{" first" if c.get("first") else ""}" style="--c:{c["color"]};min-height:{min_h}px">'

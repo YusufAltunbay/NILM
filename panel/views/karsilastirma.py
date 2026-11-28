@@ -74,9 +74,9 @@ per_device()
 
 # ---- 4. fatura yan yana
 theme.section("Fatura yan yana")
-bills = {"Gerçek": data.bill_table(pred, order[0], house, price)}
+bills = {"Gerçek": data.bill_table(pred, order[0], house, price, monthly=True)}
 for name in order:
-    bills[name] = data.bill_table(pred, name, house, price)
+    bills[name] = data.bill_table(pred, name, house, price, monthly=True)
 if not bills["Gerçek"].empty:
     theme.legend(list(bills["Gerçek"].index))
     st.altair_chart(charts.stacked_multi(bills), width="stretch")

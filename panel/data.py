@@ -177,10 +177,10 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
         theme.side_label("Birim fiyat (TL/kWh)")
         price = st.number_input("Birim fiyat", 0.0, 50.0, float(config.TL_PER_KWH), 0.1, key="sb_price",
                                 label_visibility="collapsed")
-        bill = bill_table(pred, models[0], int(house), float(price))
+        bill = bill_table(pred, models[0], int(house), float(price), other=True, monthly=True)
         if not bill.empty:
-            theme.side_card(house_name(house), f"{bill['Gerçek (TL)'].sum():,.0f}", "TL",
-                            f"{bill['Gerçek (kWh)'].sum():,.1f} kWh",
+            theme.side_card(house_name(house), f"{bill['Gerçek (TL)'].sum():,.0f}", "TL / ay",
+                            f"{bill['Gerçek (kWh)'].sum():,.0f} kWh, aylık ortalama",
                             [(theme.color(a), v) for a, v in bill["Gerçek (TL)"].items()])
         if user:
             theme.side_user(user["name"], house_name(user.get("house")) if user.get("house") is not None else "Tüm evler")
@@ -246,46 +246,60 @@ def busiest_start(ts: pd.Series, power: pd.Series, win: pd.Timedelta):
     return s.index[k].to_pydatetime()
 
 
+def _row(name, y, p, dt, price):
+    return {"Cihaz": name,
+            "Gerçek (kWh)": metrics.energy_kwh(y, dt), "Tahmin (kWh)": metrics.energy_kwh(p, dt),
+            "Gerçek (TL)": metrics.bill_tl(y, dt, price), "Tahmin (TL)": metrics.bill_tl(p, dt, price),
+            "Hata (TL)": metrics.tl_error(y, p, dt, price),
+            "Gün": len(y) * dt / 86400}  # kayıtlı süre; boşluklar sayılmaz (aylık ölçek için)
+
+
+def bill_from(sub: pd.DataFrame, dt: int, price: float, other: bool = False) -> pd.DataFrame:
+    """Tek model ve tek evin satırlarından cihaz bazlı fatura tablosu.
+    other=True: yalnızca bütün cihazların kaydı olan anlar alınır ve sayaç toplamından kalan enerji
+    'other' (Diğer cihazlar) satırı olur; böylece satırlar sayaç faturasına eşit toplanır."""
+    from panel import theme
+    apps = theme.ordered(sub["appliance"].unique())
+    if not other:
+        rows = [_row(a, g["appliance_w"].to_numpy(), g["predicted_w"].to_numpy(), dt, price)
+                for a in apps if not (g := sub[sub["appliance"] == a]).empty]
+        return pd.DataFrame(rows).set_index("Cihaz") if rows else pd.DataFrame()
+    w = sub.set_index(["timestamp", "appliance"])[["appliance_w", "predicted_w", "aggregate_w"]].unstack("appliance").dropna()
+    if w.empty:
+        return pd.DataFrame()
+    y, p = w["appliance_w"], w["predicted_w"]
+    agg = w["aggregate_w"].mean(axis=1).to_numpy()  # aynı sayaç; dakikalık ortalamalar cihaz dosyaları arasında çok az farklı olabilir
+    rows = [_row(a, y[a].to_numpy(), p[a].to_numpy(), dt, price) for a in apps if a in y.columns]
+    rows.append(_row("other", np.clip(agg - y.sum(axis=1).to_numpy(), 0, None),
+                     np.clip(agg - p.sum(axis=1).to_numpy(), 0, None), dt, price))
+    return pd.DataFrame(rows).set_index("Cihaz")
+
+
+def to_month(bill: pd.DataFrame) -> pd.DataFrame:
+    """Tutarları 30 günlük ortalamaya çevirir (her satır kendi kayıtlı süresine göre)."""
+    if bill.empty:
+        return bill
+    out = bill.copy()
+    k = 30.0 / out["Gün"].clip(lower=1.0)
+    for c in out.columns:
+        if c != "Gün":
+            out[c] = out[c] * k
+    out["Gün"] = 30.0
+    return out
+
+
 @st.cache_resource(max_entries=256)
-def _bill(model: str, house: int, price: float) -> pd.DataFrame:
+def _bill(model: str, house: int, price: float, other: bool, monthly: bool) -> pd.DataFrame:
     pred = load()[0]
     dt = int(pred.attrs.get("dt", config.SAMPLE_PERIOD_S))
-    sub = pred[(pred["model"] == model) & (pred["house"] == house)]
-    rows = []
-    from panel import theme
-    for a in theme.ordered(sub["appliance"].unique()):
-        g = sub[sub["appliance"] == a]
-        if g.empty:
-            continue
-        y, p = g["appliance_w"].to_numpy(), g["predicted_w"].to_numpy()
-        rows.append({
-            "Cihaz": a,
-            "Gerçek (kWh)": metrics.energy_kwh(y, dt),
-            "Tahmin (kWh)": metrics.energy_kwh(p, dt),
-            "Gerçek (TL)": metrics.bill_tl(y, dt, price),
-            "Tahmin (TL)": metrics.bill_tl(p, dt, price),
-            "Hata (TL)": metrics.tl_error(y, p, dt, price),
-            "Gün": len(g) * dt / 86400,  # kayıtlı süre; boşluklar sayılmaz (aylık ölçek için)
-        })
-    return pd.DataFrame(rows).set_index("Cihaz") if rows else pd.DataFrame()
+    b = bill_from(pred[(pred["model"] == model) & (pred["house"] == house)], dt, price, other)
+    return to_month(b) if monthly else b
 
 
-@st.cache_resource(max_entries=16)
-def _house_month(house: int) -> float:
-    pred = load()[0]
-    sub = pred[pred["house"] == house]
-    agg = sub.groupby("timestamp", observed=True)["aggregate_w"].first()  # sayaç her cihaz dosyasında aynı
-    return float(agg.mean()) * 24 * 30 / 1000 if len(agg) else 0.0
-
-
-def house_month_kwh(house) -> float:
-    """Evin sayaçtan ölçülen ortalama aylık toplam tüketimi (kWh, tüm cihazlar). Önbellekli."""
-    return _house_month(int(house))
-
-
-def bill_table(pred, model: str, house: int, price: float) -> pd.DataFrame:
-    """Seçili model ve ev için cihaz bazlı kWh ve TL tablosu. Önbellekli."""
-    return _bill(str(model), int(house), round(float(price), 6))
+def bill_table(pred, model: str, house: int, price: float, other: bool = False, monthly: bool = False) -> pd.DataFrame:
+    """Seçili model ve ev için cihaz bazlı kWh ve TL tablosu. Önbellekli.
+    other: sayaçtan kalan 'Diğer cihazlar' satırı; monthly: 30 günlük ortalama."""
+    return _bill(str(model), int(house), round(float(price), 6), bool(other), bool(monthly))
 
 
 @st.cache_resource(max_entries=64)

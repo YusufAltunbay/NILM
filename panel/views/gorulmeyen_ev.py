@@ -20,10 +20,9 @@ if r.empty:
     st.info("Henüz görülmeyen ev sonucu yok. `python -m scripts.run_eval` ile üretilir.")
     st.stop()
 
-bill = data.bill_table(pred, model, house, price)
+bill = data.bill_table(pred, model, house, price, other=True, monthly=True)
 if not bill.empty:
-    theme.bill_strip(bill["Gerçek (TL)"].sum(), bill["Tahmin (TL)"].sum(),
-                     bill["Gerçek (kWh)"].sum(), bill["Tahmin (kWh)"].sum())
+    theme.bill_strip(bill)
     theme.section("Fatura dağılımı")
     blocks.bill_view(bill, key="view_unseen", default="Dikey şerit")
 

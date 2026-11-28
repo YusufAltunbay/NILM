@@ -63,3 +63,19 @@ def test_house_names_and_model_order():
     from panel import data
     assert "görülmeyen" in data.house_name(2) and "doğrulama" in data.house_name(5)
     assert data.model_order(["BERT4NILM (Transformer)", "Ortalama modeli", "x"]) == ["Ortalama modeli", "BERT4NILM (Transformer)", "x"]
+
+
+def test_bill_with_other_adds_up_to_meter():
+    import numpy as np
+    from panel import data
+    ts = pd.date_range("2013-05-01", periods=100, freq="60s", tz="UTC")
+    rows = []
+    for a, w in (("kettle", 100.0), ("fridge", 50.0)):
+        rows.append(pd.DataFrame({"timestamp": ts, "appliance": a, "aggregate_w": 400.0, "appliance_w": w, "predicted_w": w * 1.2}))
+    sub = pd.concat(rows, ignore_index=True)
+    b = data.bill_from(sub, 60, 3.0, other=True)
+    assert list(b.index) == ["fridge", "kettle", "other"]
+    meter = 400.0 * 100 * 60 / 3600 / 1000 * 3.0
+    assert abs(b["Gerçek (TL)"].sum() - meter) < 1e-9 and abs(b["Tahmin (TL)"].sum() - meter) < 1e-9
+    m = data.to_month(b)
+    assert np.allclose(m["Gün"], 30.0)

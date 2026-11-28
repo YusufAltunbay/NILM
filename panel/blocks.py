@@ -15,12 +15,12 @@ _VIEWS = {
 }
 
 
-def bill_view(bill, key: str, default: str = "Şerit"):
-    """Fatura için Şerit / Dikey şerit / Halka / Çubuk seçicisi ve seçilen grafik."""
+def bill_view(bill, key: str, default: str = "Şerit", series=charts.SERIES):
+    """Fatura için Şerit / Dikey şerit / Halka / Çubuk seçicisi ve seçilen grafik. series: çizilecek sütunlar."""
     view = st.segmented_control("Görünüm", list(_VIEWS), default=default, key=key, label_visibility="collapsed") or default
     theme.legend(list(bill.index))
     chart = {"Şerit": charts.ribbon, "Dikey şerit": charts.stacked, "Halka": charts.donut, "Çubuk": charts.bars}[view]
-    st.altair_chart(chart(bill), width="stretch")
+    st.altair_chart(chart(bill, series), width="stretch")
 
 
 SMOOTH = {"Yok": 1, "Hafif": 5, "Orta": 15, "Güçlü": 60}
@@ -104,3 +104,28 @@ def compare_view(wfull: pd.DataFrame, dev: str, models, start, end, price: float
             st.altair_chart(charts.residual(view.assign(Tahmin=view[f"m{i}"])), width="stretch")
     window_cards(g, dev, models, price)
     return g
+
+
+def _save_bill(key: str):
+    from panel import auth
+    b = float(st.session_state.get(key, 0.0))
+    st.session_state["my_bill"] = b
+    user = auth.current() or {}
+    if user.get("name") and user.get("house") is not None:  # misafir değilse hesaba kaydet
+        auth.set_bill(user["name"], b)
+        st.session_state["user"]["bill"] = b or None
+        st.toast(f"Faturan kaydedildi: {b:,.0f} TL" if b else "Fatura kaldırıldı, örnek ev gösteriliyor", icon=":material/check_circle:")
+    else:
+        st.toast(f"Hesaplar {b:,.0f} TL faturaya göre" if b else "Örnek evin faturası gösteriliyor", icon=":material/check_circle:")
+
+
+def bill_form(key: str):
+    """Aylık fatura girişi: Enter ya da 'Uygula'. Değer tüm sayfalarda ortak (data.my_bill)."""
+    from panel import data
+    k = f"{key}_in"
+    st.session_state.setdefault(k, data.my_bill())
+    with st.form(f"{key}_form", border=False, enter_to_submit=True):
+        f1, f2 = st.columns([2.2, 1], vertical_alignment="bottom")
+        f1.number_input("Aylık elektrik faturan (TL)", 0.0, 100000.0, step=50.0, key=k,
+                        help="Faturandaki toplam tutar. 0 bırakırsan örnek evin ölçümü gösterilir. Enter ya da Uygula.")
+        f2.form_submit_button("Uygula", type="primary", icon=":material/bolt:", on_click=_save_bill, args=(k,), width="stretch")

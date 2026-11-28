@@ -23,6 +23,7 @@ def _conn(db=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(path)
     c.execute("CREATE TABLE IF NOT EXISTS users(username TEXT PRIMARY KEY, salt TEXT NOT NULL, pw TEXT NOT NULL, house INTEGER NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, username TEXT, created REAL NOT NULL)")
     if "bill" not in [r[1] for r in c.execute("PRAGMA table_info(users)")]:  # eski veritabanı: sütunu ekle
         c.execute("ALTER TABLE users ADD COLUMN bill REAL")
     return c
@@ -67,12 +68,75 @@ def set_bill(username: str, bill: float | None, db=None):
         c.execute("UPDATE users SET bill=? WHERE username=?", (float(bill) if bill else None, username.strip().lower()))
 
 
+COOKIE = "nilm_s"
+SESSION_DAYS = 30
+
+
+def new_session(username: str | None, db=None) -> str:
+    """Tarayıcıda çerez olarak saklanan oturum anahtarı (F5'te giriş korunur). username None: misafir."""
+    tok = secrets.token_urlsafe(24)
+    with _conn(db) as c:
+        c.execute("INSERT INTO sessions VALUES (?,?,?)", (tok, username, time.time()))
+    return tok
+
+
+def from_session(tok: str, db=None):
+    """Anahtar geçerliyse kullanıcı sözlüğü, değilse None."""
+    if not tok:
+        return None
+    with _conn(db) as c:
+        row = c.execute("SELECT username, created FROM sessions WHERE token=?", (tok,)).fetchone()
+        if not row or time.time() - row[1] > SESSION_DAYS * 86400:
+            return None
+        if row[0] is None:
+            return {"name": "Misafir", "house": None}
+        u = c.execute("SELECT house, bill FROM users WHERE username=?", (row[0],)).fetchone()
+    return {"name": row[0], "house": int(u[0]), "bill": u[1]} if u else None
+
+
+def end_session(tok: str, db=None):
+    with _conn(db) as c:
+        c.execute("DELETE FROM sessions WHERE token=?", (tok,))
+
+
+def sign_in(user: dict):
+    """Oturumu başlatır; çerez bir sonraki çalıştırmada yazılır (app.py)."""
+    st.session_state["user"] = user
+    st.session_state["token"] = new_session(None if user.get("house") is None else user["name"])
+    st.session_state["set_cookie"] = True
+
+
 def current():
-    return st.session_state.get("user")
+    user = st.session_state.get("user")
+    if user is None and not st.session_state.get("logged_out"):
+        try:
+            tok = st.context.cookies.get(COOKIE)
+        except Exception:
+            tok = None
+        user = from_session(tok)
+        if user:
+            st.session_state["user"], st.session_state["token"] = user, tok
+    return user
+
+
+def cookie_script() -> str | None:
+    """Giriş/çıkıştan sonra tarayıcı çerezini yazan ya da silen küçük betik (bir kez)."""
+    if st.session_state.pop("set_cookie", False) and st.session_state.get("token"):
+        return (f"<script>document.cookie='{COOKIE}={st.session_state['token']}; path=/; "
+                f"max-age={SESSION_DAYS * 86400}; SameSite=Lax';</script>")
+    if st.session_state.pop("clear_cookie", False):
+        return f"<script>document.cookie='{COOKIE}=; path=/; max-age=0; SameSite=Lax';</script>"
+    return None
 
 
 def logout():
-    st.session_state.pop("user", None)
+    tok = st.session_state.pop("token", None)
+    if tok:
+        end_session(tok)
+    for k in ("user", "my_bill"):
+        st.session_state.pop(k, None)
+    st.session_state["clear_cookie"] = True
+    st.session_state["logged_out"] = True   # çerez silinene kadar eski çerezle geri girmesin
 
 
 _LOGIN_CSS = """
@@ -185,7 +249,7 @@ def login_page():
                     if st.form_submit_button("Giriş yap", type="primary", width="stretch"):
                         user = verify(u, p)
                         if user:
-                            st.session_state["user"] = user
+                            sign_in(user)
                             st.rerun()
                         st.error("Kullanıcı adı ya da parola hatalı.")
             with t_up:
@@ -201,8 +265,8 @@ def login_page():
                         if err:
                             st.error(err)
                         else:
-                            st.session_state["user"] = {"name": u.strip().lower(), "house": int(home), "bill": b or None}
+                            sign_in({"name": u.strip().lower(), "house": int(home), "bill": b or None})
                             st.rerun()
         if st.button("Misafir olarak devam et (tüm evler)", width="stretch", key="guest"):
-            st.session_state["user"] = {"name": "Misafir", "house": None}
+            sign_in({"name": "Misafir", "house": None})
             st.rerun()

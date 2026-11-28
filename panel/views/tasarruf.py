@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
 
-from panel import auth, charts, data, insights, savings, theme
+from panel import blocks, charts, data, insights, savings, theme
 
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
@@ -15,32 +15,11 @@ if bill.empty:
     st.error("Bu ev için veri yok.")
     st.stop()
 
-user = auth.current() or {}
-if "ts_bill" not in st.session_state:
-    st.session_state["ts_bill"] = float(user.get("bill") or 0.0)
-
-
-def save_bill():
-    b = float(st.session_state.get("ts_bill_in", 0.0))
-    st.session_state["ts_bill"] = b
-    if user.get("name") and user.get("house") is not None:  # misafir değilse hesaba kaydet
-        auth.set_bill(user["name"], b)
-        st.session_state["user"]["bill"] = b or None
-        st.toast(f"Faturan kaydedildi: {b:,.0f} TL" if b else "Fatura kaldırıldı, örnek ev kullanılıyor", icon=":material/check_circle:")
-    else:
-        st.toast(f"Hesaplar {b:,.0f} TL faturaya göre" if b else "Örnek evin faturası kullanılıyor", icon=":material/check_circle:")
-
-
 house_tl = float(bill["Gerçek (TL)"].sum())  # örnek evin aylık sayaç faturası
 b1, b2 = st.columns([1, 2], vertical_alignment="center")
 with b1:
-    with st.form("bill_form", border=False, enter_to_submit=True):
-        st.session_state.setdefault("ts_bill_in", st.session_state["ts_bill"])
-        f1, f2 = st.columns([2.2, 1], vertical_alignment="bottom")
-        f1.number_input("Aylık elektrik faturan (TL)", 0.0, 100000.0, step=50.0, key="ts_bill_in",
-                        help="Faturandaki toplam tutar. 0 bırakırsan örnek evin tutarları kullanılır. Enter ya da Uygula.")
-        f2.form_submit_button("Uygula", type="primary", icon=":material/bolt:", on_click=save_bill, width="stretch")
-my_bill = float(st.session_state["ts_bill"])
+    blocks.bill_form("ts_bill")
+my_bill = data.my_bill()
 m_all = savings.monthly(bill)
 m = m_all.drop(index="other", errors="ignore")
 other = max(0.0, house_tl - float(m["TL"].sum()))  # sayaç faturasından cihaz tahminleri çıkınca kalan

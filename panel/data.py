@@ -178,7 +178,12 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
         price = st.number_input("Birim fiyat", 0.0, 50.0, float(config.TL_PER_KWH), 0.1, key="sb_price",
                                 label_visibility="collapsed")
         bill = bill_table(pred, models[0], int(house), float(price), other=True, monthly=True)
-        if not bill.empty:
+        mine = my_split(next((m for m in PREFERRED if m in models), models[0]), int(house), float(price)) if user and user.get("house") == int(house) else None
+        if mine is not None:
+            dev, oth = mine
+            shares = [(theme.color(a), v) for a, v in dev["TL"].items()] + [(theme.color("other"), oth)]
+            theme.side_card(house_name(house), f"{my_bill():,.0f}", "TL / ay", "senin faturan, cihaz payları tahmini", shares)
+        elif not bill.empty:
             theme.side_card(house_name(house), f"{bill['Gerçek (TL)'].sum():,.0f}", "TL / ay",
                             f"{bill['Gerçek (kWh)'].sum():,.0f} kWh, aylık ortalama",
                             [(theme.color(a), v) for a, v in bill["Gerçek (TL)"].items()])
@@ -188,6 +193,28 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
                 auth.logout()
                 st.rerun()
     return models, int(house), float(price)
+
+
+def my_bill() -> float:
+    """Kullanıcının girdiği aylık fatura (TL); 0 = girilmemiş. Hesaba kayıtlıysa oradan başlar."""
+    if "my_bill" not in st.session_state:
+        from panel import auth
+        st.session_state["my_bill"] = float((auth.current() or {}).get("bill") or 0.0)
+    return float(st.session_state["my_bill"])
+
+
+def my_split(model: str, house: int, price: float):
+    """Kullanıcının faturası cihazlara: payları seçili modelin örnek evdeki ayrımından alır.
+    -> (cihazlar: kWh, TL; diğer TL) ya da fatura girilmemişse None."""
+    b = my_bill()
+    if b <= 0:
+        return None
+    from panel import savings
+    bill = bill_table(None, model, house, price, other=True, monthly=True)
+    if bill.empty:
+        return None
+    m = savings.monthly(bill).drop(index="other", errors="ignore")
+    return savings.fit_to_bill(m, float(bill["Gerçek (TL)"].sum()), b, price)
 
 
 def one_model(models, key: str) -> str:

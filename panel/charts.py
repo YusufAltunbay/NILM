@@ -14,10 +14,13 @@ def _style(chart):
             .configure_legend(labelFont=FONT, titleFont=FONT, labelColor=theme.INK, titleColor=theme.MUTED, orient="top", symbolType="square"))
 
 
-def ribbon(bill: pd.DataFrame):
+SERIES = (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)"))  # (görünen ad, sütun)
+
+
+def ribbon(bill: pd.DataFrame, series=SERIES):
     """Fatura şeridi: üst satır gerçek, alt satır tahmin; cihaz dilimleri aynı ölçekte hizalı."""
     rows = []
-    for name, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+    for name, col in series:
         total = max(bill[col].sum(), 1e-9)
         start = 0.0
         for a, v in bill[col].items():
@@ -27,7 +30,7 @@ def ribbon(bill: pd.DataFrame):
             start += v
     d = pd.DataFrame(rows)
     names, colors = theme.palette(list(bill.index))
-    row_enc = alt.Y("Satir:N", sort=["Gerçek", "Tahmin"], title=None,
+    row_enc = alt.Y("Satir:N", sort=[n for n, _ in series], title=None,
                     axis=alt.Axis(domain=False, ticks=False, labelFontSize=14, labelColor=theme.INK, labelPadding=10))
     xmax = float(d["end"].max()) or 1.0
     bars = alt.Chart(d).mark_bar(height={"band": 0.72}, cornerRadius=3, stroke=theme.SURFACE, strokeWidth=2).encode(
@@ -42,7 +45,7 @@ def ribbon(bill: pd.DataFrame):
         label="datum.n >= length(datum.Cihaz) ? datum.Cihaz : (datum.n >= 4 ? substring(datum.Cihaz, 0, datum.n - 1) + '…' : '')")
         .mark_text(align="left", dx=9, color="white", fontWeight=600, fontSize=13, font=FONT).encode(
         tooltip=alt.value(None), x="start:Q", y=row_enc, text="label:N"))
-    return _style((bars + text).properties(height=190))
+    return _style((bars + text).properties(height=110 + 40 * len(series)))
 
 
 def _rgba(hex_color: str, alpha: float) -> str:
@@ -78,12 +81,12 @@ def series(df: pd.DataFrame, appliance: str, show_aggregate: bool, bands: pd.Dat
     return _style(alt.layer(*layers).properties(height=380))
 
 
-def donut(bill: pd.DataFrame):
+def donut(bill: pd.DataFrame, series=SERIES):
     """İki halka: gerçek ve tahmin faturası; ortada toplam tutar."""
     names, colors = theme.palette(list(bill.index))
     w, h = 330, 290
     parts = []
-    for title, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+    for title, col in series:
         d = pd.DataFrame({"Cihaz": [theme.tr(a) for a in bill.index], "TL": bill[col].round(2).to_numpy()})
         total = d["TL"].sum()
         d["Pay"] = (d["TL"] / max(total, 1e-9) * 100).round(1)
@@ -99,35 +102,35 @@ def donut(bill: pd.DataFrame):
             text="t:N", x=alt.value(w / 2), y=alt.value(h / 2 + 22))
         parts.append(alt.layer(arc, big, small).properties(
             width=w, height=h, title=alt.TitleParams(title, anchor="middle", fontSize=14, font=FONT, color=theme.INK, fontWeight=600)))
-    return _style(alt.hconcat(*parts, spacing=70))
+    return _style(parts[0] if len(parts) == 1 else alt.hconcat(*parts, spacing=70))
 
 
-def bars(bill: pd.DataFrame):
+def bars(bill: pd.DataFrame, series=SERIES):
     """Dikey, cihaz renkli çubuklar: dolu çubuk gerçek, açık dolgulu çubuk tahmin."""
     names, colors = theme.palette(list(bill.index))
     rows = []
-    for seri, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+    for seri, col in series:
         for a, v in bill[col].items():
             rows.append(dict(Cihaz=theme.tr(a), Seri=seri, TL=round(float(v), 2)))
     d = pd.DataFrame(rows)
     base = alt.Chart(d).encode(
         x=alt.X("Cihaz:N", sort=names, title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelColor=theme.INK, labelLimit=150, ticks=False, domain=False)),
-        xOffset=alt.XOffset("Seri:N", sort=["Gerçek", "Tahmin"]),
+        xOffset=alt.XOffset("Seri:N", sort=[n for n, _ in series]),
         y=alt.Y("TL:Q", title="Fatura (TL)", axis=alt.Axis(format=",.0f", tickCount=5)))
     bar = base.mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5, strokeWidth=2).encode(
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         stroke=alt.Stroke("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
-        fillOpacity=alt.FillOpacity("Seri:N", scale=alt.Scale(domain=["Gerçek", "Tahmin"], range=[1.0, 0.28]), legend=None),
+        fillOpacity=alt.FillOpacity("Seri:N", scale=alt.Scale(domain=[n for n, _ in series], range=[1.0, 0.28][:len(series)]), legend=None),
         tooltip=[alt.Tooltip("Cihaz:N"), alt.Tooltip("Seri:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)")])
     txt = base.mark_text(dy=-8, fontSize=12, font=FONT, color=theme.INK, fontWeight=500).encode(tooltip=alt.value(None), text=alt.Text("TL:Q", format=",.1f"))
     return _style((bar + txt).properties(height=340))
 
 
-def stacked(bill: pd.DataFrame):
+def stacked(bill: pd.DataFrame, series=SERIES):
     """Dikey şerit: iki sütun (gerçek, tahmin), cihaz dilimleri üst üste."""
     names, colors = theme.palette(list(bill.index))
     rows = []
-    for seri, col in (("Gerçek", "Gerçek (TL)"), ("Tahmin", "Tahmin (TL)")):
+    for seri, col in series:
         total = max(float(bill[col].sum()), 1e-9)
         start = 0.0
         for a, v in bill[col].items():
@@ -136,10 +139,10 @@ def stacked(bill: pd.DataFrame):
                              start=start, end=start + v, mid=start + v / 2))
             start += v
     d = pd.DataFrame(rows)
-    x = alt.X("Seri:N", sort=["Gerçek", "Tahmin"], title=None,
+    x = alt.X("Seri:N", sort=[n for n, _ in series], title=None,
               axis=alt.Axis(labelAngle=0, labelFontSize=14, labelColor=theme.INK, ticks=False, domain=False, labelPadding=8))
     ymax = float(d["end"].max()) * 1.04 or 1.0
-    bar = alt.Chart(d).mark_bar(width={"band": 0.55}, cornerRadius=4, stroke=theme.SURFACE, strokeWidth=2).encode(
+    bar = alt.Chart(d).mark_bar(width={"band": 0.55 if len(series) > 1 else 0.32}, cornerRadius=4, stroke=theme.SURFACE, strokeWidth=2).encode(
         x=x, y=alt.Y("start:Q", title="Fatura (TL)", scale=alt.Scale(domain=[0, ymax], nice=False), axis=alt.Axis(format=",.0f", tickCount=6)), y2="end:Q",
         color=alt.Color("Cihaz:N", scale=alt.Scale(domain=names, range=colors), legend=None),
         tooltip=[alt.Tooltip("Seri:N"), alt.Tooltip("Cihaz:N"), alt.Tooltip("TL:Q", format=",.2f", title="Tutar (TL)"),
@@ -382,3 +385,4 @@ def day_split(sayac: pd.DataFrame, parts: pd.DataFrame, height: int = 360):
         tooltip=[alt.Tooltip("timestamp:T", format="%H:%M", title="Saat"), alt.Tooltip("Ad:N", title="Cihaz"), alt.Tooltip("W:Q", format=",.0f", title="Güç (W)")]
     ).properties(height=height)
     return _style(alt.vconcat(top, bottom, spacing=14).resolve_scale(x="shared"))
+

@@ -43,3 +43,15 @@ def test_possessive():
     assert auth.possessive("oğuz") == "Oğuz'un"
     assert auth.possessive("gül") == "Gül'ün"
     assert auth.possessive("ayşe") == "Ayşe'nin"
+
+
+def test_sessions_survive_and_end(tmp_path):
+    db = tmp_path / "u.db"
+    auth.create_user("ali", "parola1", 2, db=db, bill=900)
+    tok = auth.new_session("ali", db=db)
+    assert auth.from_session(tok, db=db) == {"name": "ali", "house": 2, "bill": 900}
+    g = auth.new_session(None, db=db)
+    assert auth.from_session(g, db=db)["house"] is None
+    auth.end_session(tok, db=db)
+    assert auth.from_session(tok, db=db) is None
+    assert auth.from_session("yok", db=db) is None

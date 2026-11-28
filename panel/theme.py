@@ -456,6 +456,21 @@ def ledger(bill: pd.DataFrame):
 <tbody>{rows}</tbody><tfoot>{foot}</tfoot></table>""", unsafe_allow_html=True)
 
 
+def share_table(tl: pd.Series, kwh: pd.Series):
+    """Kullanıcının faturasının kalemleri (tahmini): cihaz, pay, kWh, TL."""
+    total = max(float(tl.sum()), 1e-9)
+    rows = ""
+    for k, a in enumerate(tl.index):
+        share = tl[a] / total * 100
+        rows += (f'<tr class="{"oth" if a == "other" else ""}" style="animation-delay:{.04 * k:.2f}s">'
+                 f'<td><span class="dot" style="background:{color(a)}"></span>{html.escape(tr(a))}</td>'
+                 f'<td><span class="share" style="width:{max(2, int(share * 1.6))}px;background:{color(a)}"></span>%{share:.1f}</td>'
+                 f'<td>{kwh[a]:,.1f}</td><td>{tl[a]:,.2f}</td></tr>')
+    st.markdown(f'<table class="ledger"><thead><tr><th>Cihaz</th><th>Pay</th><th>kWh</th><th>TL</th></tr></thead>'
+                f'<tbody>{rows}</tbody><tfoot><tr><td>Toplam</td><td>%100</td><td>{kwh.sum():,.1f}</td><td>{tl.sum():,.2f}</td></tr></tfoot></table>',
+                unsafe_allow_html=True)
+
+
 def sidebar_footer():
     st.markdown('<div class="side-foot">Veri: UK-DALE<br>Disiplinler arası proje<br>Yusuf, Ersin, Kamil</div>',
                 unsafe_allow_html=True)

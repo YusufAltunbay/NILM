@@ -8,3 +8,4 @@ __pycache__/
 results/*
 !results/results.csv
 !results/experiments.csv
+.panel/

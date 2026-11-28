@@ -32,7 +32,7 @@ ADIMLAR
 
 GÖZDEN GEÇİRMENİZİ İSTEDİKLERİM
 
-* PR #2 (`kamil/degerlendirme` → `main`): main'deki son değişiklikleri (Ersin'in PR #22, #23) dalıma birleştirdim, çakışma yok. Bakıp onaylarsanız main'e alalım. Yusuf, main korumalı olduğu için onay sende.
+* PR #13 (`kamil/degerlendirme` → `main`): main'deki son değişiklikleri (Ersin'in PR #22, #23) dalıma birleştirdim, çakışma yok. Bakıp onaylarsanız main'e alalım. Yusuf, main korumalı olduğu için onay sende.
 * Ersin: panel tahminleri yalnızca `nilm.eval.predictions.available()` / `path()` ile okuyor. Dosya adı ya da sütun biçimini değiştirirsen haber ver.
 * Ersin: "Nasıl çalışır" sayfasındaki model açıklamaları (bir cümlelik) doğru mu, bak lütfen. Dosya: `panel/views/nasil_calisir.py`, `DESC` sözlüğü.
 * Yusuf: "Nasıl çalışır" sayfasında UK-DALE ve evlerin rolleri anlatılıyor. Eksik ya da yanlış bir şey varsa söyle.

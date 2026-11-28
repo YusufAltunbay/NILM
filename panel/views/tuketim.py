@@ -9,7 +9,7 @@ from panel import blocks, data, theme
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
 
-theme.page_header("Fatura dağılımı", chips=[f"Ev {house}", f"{price:.2f} TL/kWh"])
+theme.page_header("Fatura dağılımı", chips=[data.house_name(house), f"{price:.2f} TL/kWh"])
 model = data.one_model(models, "model_tuketim")
 bill = data.bill_table(pred, model, house, price)
 if bill.empty:

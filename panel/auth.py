@@ -94,7 +94,7 @@ def login_page():
                 u = st.text_input("Kullanıcı adı", key="reg_u")
                 p = st.text_input("Parola", type="password", key="reg_p")
                 p2 = st.text_input("Parola (tekrar)", type="password")
-                h = st.selectbox("Evin", houses, format_func=lambda x: f"Ev {x}")
+                h = st.selectbox("Evin", houses, format_func=data.house_name)
                 if st.form_submit_button("Hesap oluştur", type="primary", width="stretch"):
                     err = "Parolalar aynı değil." if p != p2 else create_user(u, p, h)
                     if err:

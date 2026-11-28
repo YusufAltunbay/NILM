@@ -23,16 +23,16 @@ def _events(on: np.ndarray, gap: int, min_len: int):
     return [(s, e) for s, e in merged if e - s >= min_len]
 
 
-def usage_facts(ts: pd.Series, power: pd.Series, appliance: str, price: float) -> dict:
+def usage_facts(ts: pd.Series, power: pd.Series, appliance: str, price: float, dt: int | None = None) -> dict:
     """Kullanım sayısı, bir kullanımın enerjisi/maliyeti, günlük çalışma süresi, en yoğun başlangıç saati."""
     thr = config.ON_THRESHOLD_W.get(appliance, config.DEFAULT_ON_THRESHOLD_W)
-    dt = config.SAMPLE_PERIOD_S
+    dt = int(dt or config.SAMPLE_PERIOD_S)
     t = pd.DatetimeIndex(ts)
     p = np.nan_to_num(power.to_numpy(dtype=float))
     k = max(1, SMOOTH_S // dt)
     ps = pd.Series(p).rolling(k, min_periods=1, center=True).mean().to_numpy() if k > 1 else p
     ev = _events(ps > thr, gap=max(1, GAP_S // dt), min_len=max(1, MIN_S // dt))
-    days = max(1.0, (t.max() - t.min()).total_seconds() / 86400)
+    days = max(1.0, len(p) * dt / 86400)  # kayıtlı süre (boşluklar sayılmaz)
     n = len(ev)
     pad = k // 2  # yumuşatma olayın kenarlarını kısaltır; enerji ve süre hesabında geri eklenir
     spans = [(max(0, s - pad), min(len(p), e + pad)) for s, e in ev]
@@ -48,6 +48,8 @@ def describe(f: dict) -> list:
     """(etiket, değer) satırları. Günde çok sık açılıp kapanan cihazlarda (ör. buzdolabı) 'kullanım' yerine çevrim denir."""
     if f["uses"] == 0:
         return [("Kullanım", "bu dönemde yok")]
+    if f["minutes_per_day"] > 0.9 * 1440:  # neredeyse hiç kapanmıyor: model açma/kapamayı ayırt edemiyor (ör. sabit tahmin)
+        return [("Kullanım", "bu model ayırt edemiyor")]
     rows = []
     if f["per_day"] > 12:
         rows.append(("Çalışma çevrimi", f"günde ~{f['per_day']:.0f}"))

@@ -34,3 +34,32 @@ def test_ordered_keeps_unknown_appliances():
     from panel import theme
     assert theme.ordered(["tv", "kettle", "fridge"]) == ["fridge", "kettle", "tv"]
     assert theme.color("tv") == theme.color("tv")  # çalıştırmalar arasında kararlı
+
+
+def test_build_cache_downsamples_and_keeps_energy(tmp_path):
+    import numpy as np
+    from nilm.eval import predictions
+    from panel import data
+    n = 3000
+    ts = pd.Series(pd.date_range("2013-05-01", periods=n, freq="6s", tz="UTC"))
+    test = pd.DataFrame({"timestamp": ts, "aggregate_w": np.full(n, 500.0), "appliance_w": np.r_[np.zeros(1000), np.full(n - 1000, 120.0)]})
+    for model in ("mean", "seq2point"):
+        for h in (2, 5):
+            predictions.save(model, "washing machine", h, test, test["appliance_w"].to_numpy() * 0.9, root=tmp_path)
+    cache = tmp_path / "c.parquet"
+    pred = data.build_cache(tmp_path, cache=cache)
+    assert set(pred["model"]) == {"mean", "seq2point"} and set(pred["house"]) == {2, 5}
+    g = pred[(pred["model"] == "mean") & (pred["house"] == 2)]
+    assert len(g) == n * 6 // 60
+    # enerji korunur
+    assert abs(g["appliance_w"].sum() * 60 - test["appliance_w"].sum() * 6) < 1e-3 * test["appliance_w"].sum() * 6
+    # ikinci çağrı diskteki önbellekten okur
+    mt = cache.stat().st_mtime_ns
+    data.build_cache(tmp_path, cache=cache)
+    assert cache.stat().st_mtime_ns == mt
+
+
+def test_house_names_and_model_order():
+    from panel import data
+    assert "görülmeyen" in data.house_name(2) and "doğrulama" in data.house_name(5)
+    assert data.model_order(["BERT4NILM (Transformer)", "Ortalama modeli", "x"]) == ["Ortalama modeli", "BERT4NILM (Transformer)", "x"]

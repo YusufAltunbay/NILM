@@ -57,3 +57,9 @@ def test_suggestions_rank_and_unknown_appliance():
 def test_suggestions_rank_by_potential_not_bill_share():
     m = pd.DataFrame({"kWh": [1, 1], "TL": [100.0, 60.0]}, index=["fridge", "kettle"])
     assert savings.suggestions(m)[0]["appliance"] == "kettle"   # buzdolabı daha pahalı ama kısılacak yer az
+
+
+def test_monthly_uses_per_device_days():
+    bill = pd.DataFrame({"Tahmin (kWh)": [10.0, 10.0], "Tahmin (TL)": [30.0, 30.0], "Gün": [15.0, 60.0]}, index=["a", "b"])
+    m = savings.monthly(bill)
+    assert m.loc["a", "TL"] == 60.0 and m.loc["b", "TL"] == 15.0

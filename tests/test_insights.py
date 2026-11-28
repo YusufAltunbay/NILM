@@ -35,3 +35,8 @@ def test_noisy_threshold_crossings_are_not_separate_uses():
     p[::7] += 3000 * (rng.random(len(p[::7])) < 0.5)   # tek tek eşiği aşan sivri gürültü
     f = insights.usage_facts(ts, pd.Series(p), "kettle", price=3.0)
     assert f["uses"] <= 3                              # binlerce değil
+
+
+def test_constant_prediction_is_not_described_as_usage():
+    f = dict(per_day=0.03, uses=1, kwh_per_use=14.0, tl_per_use=45.0, peak_hour=0, minutes_per_day=1440)
+    assert insights.describe(f) == [("Kullanım", "bu model ayırt edemiyor")]

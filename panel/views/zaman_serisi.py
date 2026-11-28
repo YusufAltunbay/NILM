@@ -11,7 +11,7 @@ pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
 sub = pred[(pred["house"] == house) & pred["model"].isin(models)]
 
-theme.page_header("Gerçek ve tahmin", chips=[f"Ev {house}", f"{len(models)} model"])
+theme.page_header("Gerçek ve tahmin", chips=[data.house_name(house), f"{len(models)} model"])
 if sub.empty:
     st.error("Bu ev için veri yok.")
     st.stop()

@@ -13,7 +13,7 @@ from panel import blocks, charts, data, theme
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
 
-theme.page_header("Model karşılaştırma", chips=[f"Ev {house}", f"{len(models)} model"])
+theme.page_header("Model karşılaştırma", chips=[data.house_name(house), f"{len(models)} model"])
 if len(models) < 2:
     st.info("Karşılaştırma için sol panelden en az iki model seçin.")
     st.stop()
@@ -25,7 +25,7 @@ if r.empty:
 
 METRICS = ["mae", "sae", "tl_error", "f1"]
 LABEL = {"mae": "MAE", "sae": "SAE", "tl_error": "Fatura hatası", "f1": "F1"}
-FMT = {"mae": "{:.2f} W", "sae": "{:.3f}", "tl_error": "{:.3f} TL", "f1": "{:.2f}"}
+FMT = {"mae": "{:.2f} W", "sae": "{:.3f}", "tl_error": "{:.2f} TL", "f1": "{:.2f}"}
 ozet = r.groupby("model")[METRICS].mean()
 LOWER = {"mae": True, "sae": True, "tl_error": True, "f1": False}
 
@@ -111,5 +111,5 @@ cfg = {"sira": st.column_config.NumberColumn("Ortalama sıra", format="%.1f"),
        "mae": st.column_config.NumberColumn("MAE (W)", format="%.2f"),
        "sae": st.column_config.NumberColumn("SAE", format="%.3f"),
        "f1": st.column_config.ProgressColumn("F1", min_value=0.0, max_value=1.0, format="%.2f"),
-       "tl_error": st.column_config.NumberColumn("Fatura hatası (TL)", format="%.3f")}
+       "tl_error": st.column_config.NumberColumn("Fatura hatası (TL)", format="%.2f")}
 st.dataframe(tab, width="stretch", hide_index=True, column_config=cfg)

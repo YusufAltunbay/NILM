@@ -290,8 +290,7 @@ def model_pill(m: str) -> str:
     return f"{dots[i % len(dots)]} {m}"
 
 
-def side_user(name: str, house):
-    sub = f"Ev {house}" if house is not None else "Tüm evler"
+def side_user(name: str, sub: str):
     st.markdown(f'<div class="sideuser"><span class="av">{html.escape(name[:1].upper())}</span>'
                 f'<span><b>{html.escape(name)}</b><br><small>{html.escape(sub)}</small></span></div>', unsafe_allow_html=True)
 

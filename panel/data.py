@@ -1,5 +1,10 @@
 """Panelin veri katmanı: tahmin dosyalarını ve results.csv'yi okur.
-Dosyalar yoksa sahte veriyle demo moduna düşer (is_demo=True)."""
+
+Gerçek tahminler 6 sn'lik ve büyük (~76 milyon satır). Panel bunları bir kez dakikalık
+ortalamaya indirip .panel/ altına önbellek dosyası olarak yazar; sonraki açılışlar bu
+küçük dosyadan okunur (~10 kat az satır, enerji/fatura değişmez çünkü ortalama korunur).
+Tahmin dosyası yoksa sahte veriyle demo moduna düşer (is_demo=True)."""
+import json
 import sys
 from pathlib import Path
 
@@ -16,33 +21,105 @@ from nilm.eval import metrics, predictions, report
 from nilm.eval.results import RESULTS
 
 
-LABELS = {"mean": "Ortalama modeli"}  # ekranda gösterilen ad
+# Ekranda gösterilen adlar; sıra, seçicilerdeki sıradır. Bilinmeyen model ham adıyla görünür.
+LABELS = {
+    "mean": "Ortalama modeli",
+    "threshold": "Eşik modeli",
+    "seq2point": "seq2point (CNN)",
+    "bert4nilm": "BERT4NILM (Transformer)",
+}
+# Tek modelli sayfalarda (fatura, tasarruf) ilk açılışta gösterilecek model: cihazları gerçekten
+# ayırabilen bir model. Ortalama modeli sabit tahmin yaptığı için kullanım bilgisi üretemez.
+PREFERRED = ["seq2point (CNN)", "BERT4NILM (Transformer)", "Eşik modeli"]
+STEP_S = 60                          # panel önbelleğinin örnekleme aralığı (sn)
+CACHE = ROOT / ".panel" / "tahmin_dakikalik.parquet"
 
 
-def _finish(pred, res, demo):
-    pred["model"] = pred["model"].replace(LABELS)
-    res["model"] = res["model"].replace(LABELS)
+def _finish(pred, res, demo, dt):
     for c in ("model", "appliance"):
         pred[c] = pred[c].astype("category")  # bellek ve süzme hızı için
+    pred["model"] = pred["model"].cat.rename_categories(lambda m: LABELS.get(m, m))
+    res["model"] = res["model"].replace(LABELS)
+    pred.attrs["dt"] = dt
     return pred, res, demo
 
 
-@st.cache_resource(show_spinner="Veri yükleniyor...")
+def model_order(models) -> list:
+    """LABELS sırası önce, kalanlar alfabetik."""
+    known = [v for v in LABELS.values() if v in set(models)]
+    return known + sorted(m for m in models if m not in known)
+
+
+def dt() -> int:
+    """Yüklenen verinin örnekleme aralığı (sn): gerçek veride STEP_S, demoda config.SAMPLE_PERIOD_S."""
+    return int(load()[0].attrs.get("dt", config.SAMPLE_PERIOD_S))
+
+
+def house_name(h) -> str:
+    if h is None:
+        return "Tüm evler"
+    h = int(h)
+    if h in config.UNSEEN_HOUSES:
+        return f"Ev {h} · görülmeyen"
+    if h in getattr(config, "VAL_HOUSES", []):
+        return f"Ev {h} · doğrulama"
+    return f"Ev {h}"
+
+
+@st.cache_resource(show_spinner="Veri yükleniyor... (ilk açılışta tahminler özetlenir, 1-2 dk sürebilir)")
 def load():
     """-> (tahminler, sonuçlar, demo_mu). Önbellek kopya üretmez; dönen tablolar değiştirilmemeli."""
     return _finish(*_load())
 
 
+def _signature(files) -> list:
+    return [[f.name, f.stat().st_size, int(f.stat().st_mtime)] for f in files]
+
+
+def _downsample(d: pd.DataFrame, step_s: int = STEP_S) -> pd.DataFrame:
+    """6 sn'lik tahmin dosyasını step_s'lik ortalamaya indirir; boş aralıklar (kayıt boşlukları) atılır."""
+    out = (d.set_index("timestamp")[["aggregate_w", "appliance_w", "pred_w"]]
+             .resample(f"{step_s}s").mean().dropna().astype("float32").reset_index())
+    return out.rename(columns={"pred_w": "predicted_w"})
+
+
+def build_cache(root: Path | None = None, cache: Path = CACHE, step_s: int = STEP_S) -> pd.DataFrame | None:
+    """Tahmin dosyalarını dakikalık tek tabloya indirir ve diske yazar. Dosyalar değişmediyse diskten okur.
+    Dosya yoksa None. Her dosya ayrı okunup küçültüldüğü için bellekte hiçbir zaman tamamı durmaz."""
+    trip = predictions.available(root)
+    if not trip:
+        return None
+    files = [predictions.path(m, a, h, root) for m, a, h in trip]
+    sig = {"step_s": step_s, "files": _signature(files)}
+    meta = cache.with_suffix(".json")
+    if cache.exists() and meta.exists() and json.loads(meta.read_text(encoding="utf-8")) == sig:
+        return pd.read_parquet(cache)
+    frames = []
+    for (model, app, house), f in zip(trip, files):
+        d = _downsample(pd.read_hdf(f, "data"), step_s)
+        d["house"], d["appliance"], d["model"] = house, app, model
+        frames.append(d)
+    pred = pd.concat(frames, ignore_index=True)
+    for c in ("model", "appliance"):
+        pred[c] = pred[c].astype("category")
+    pred["house"] = pred["house"].astype("int16")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    pred.to_parquet(cache, index=False)
+    meta.write_text(json.dumps(sig), encoding="utf-8")
+    return pred
+
+
 def _load():
-    pred = predictions.load_all()
-    if not pred.empty:
-        res = report.load(RESULTS) if Path(RESULTS).exists() else _results_from(pred)
-        return pred, res, False
+    pred = build_cache()
+    if pred is not None:
+        res = report.load(RESULTS) if Path(RESULTS).exists() else _results_from(pred, STEP_S)
+        return pred, res, False, STEP_S
     from scripts import run_eval, synthetic
     df = synthetic.make(n=6000, n_test=200000)  # test evi ~14 gün
     frames = []
     test_houses = [h for h in sorted(df["house"].unique()) if h not in config.TRAIN_HOUSES]
-    for name, make in run_eval.MODELS.items():
+    light = {k: v for k, v in run_eval.MODELS.items() if k in ("mean", "threshold")}  # demo için eğitim gerektirmeyenler
+    for name, make in light.items():
         for a in config.APPLIANCES:
             sub = df[df["appliance"] == a]
             model = make().fit(sub[sub["house"].isin(config.TRAIN_HOUSES)])
@@ -52,28 +129,10 @@ def _load():
                 f["model"] = name
                 frames.append(f)
     pred = pd.concat(frames, ignore_index=True)
-    pred = pd.concat([pred, *_demo_models(pred)], ignore_index=True)
-    return pred, _results_from(pred), True
+    return pred, _results_from(pred, config.SAMPLE_PERIOD_S), True, config.SAMPLE_PERIOD_S
 
 
-def _demo_models(base: pd.DataFrame):
-    """Karşılaştırma ekranları dolu görünsün diye demo için iki sahte model üretir.
-    Gerçek modeller (Ersin) gelince bunlar kullanılmaz; """
-    out = []
-    rng = np.random.default_rng(7)
-    b = base[base["model"] == "mean"]
-    sd = b.groupby(["house", "appliance"])["appliance_w"].transform("std").fillna(0).to_numpy()
-    for name, skill, noise in (("Eşik modeli", 0.55, 0.45), ("Derin ağ", 0.85, 0.12)):
-        f = b.copy()
-        y, m = f["appliance_w"].to_numpy(), f["predicted_w"].to_numpy()
-        p = skill * y + (1 - skill) * m + rng.normal(0, 1, len(f)) * noise * sd
-        f["predicted_w"] = np.clip(p, 0, f["aggregate_w"].to_numpy())
-        f["model"] = name
-        out.append(f)
-    return out
-
-
-def _results_from(pred: pd.DataFrame) -> pd.DataFrame:
+def _results_from(pred: pd.DataFrame, step_s: int) -> pd.DataFrame:
     """results.csv yoksa tahminlerden metrikleri hesapla."""
     rows = []
     for (m, h, a), g in pred.groupby(["model", "house", "appliance"]):
@@ -83,7 +142,7 @@ def _results_from(pred: pd.DataFrame) -> pd.DataFrame:
                          mae=metrics.mae(y, p), sae=metrics.sae(y, p),
                          f1=metrics.f1_on_off(y, p, config.ON_THRESHOLD_W.get(
                              a, config.DEFAULT_ON_THRESHOLD_W)),
-                         tl_error=metrics.tl_error(y, p, config.SAMPLE_PERIOD_S, config.TL_PER_KWH),
+                         tl_error=metrics.tl_error(y, p, step_s, config.TL_PER_KWH),
                          predict_ms=float("nan")))
     return pd.DataFrame(rows)
 
@@ -92,7 +151,7 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
     """Ortak sol panel: modeller (birden fazla seçilebilir), ev, birim fiyat, seçili evin özeti.
     Giriş yapmış kullanıcı yalnızca kendi evini görür. -> (models, house, price)."""
     from panel import auth, theme
-    all_models = sorted(pred["model"].unique())
+    all_models = model_order(pred["model"].unique())
     theme.register_models(all_models)
     user = auth.current()
     houses = sorted(int(h) for h in pred["house"].unique())
@@ -107,7 +166,7 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
         if len(houses) > 1:
             theme.side_label("Ev")
             house = st.selectbox("Ev", houses, key="sb_house_u" if houses_only else "sb_house",
-                                 format_func=lambda h: f"Ev {h}", label_visibility="collapsed")
+                                 format_func=house_name, label_visibility="collapsed")
         else:
             house = houses[0]
         theme.side_label("Birim fiyat (TL/kWh)")
@@ -115,11 +174,11 @@ def sidebar(pred: pd.DataFrame, demo: bool, houses_only=None):
                                 label_visibility="collapsed")
         bill = bill_table(pred, models[0], int(house), float(price))
         if not bill.empty:
-            theme.side_card(f"Ev {house}", f"{bill['Gerçek (TL)'].sum():,.0f}", "TL",
+            theme.side_card(house_name(house), f"{bill['Gerçek (TL)'].sum():,.0f}", "TL",
                             f"{bill['Gerçek (kWh)'].sum():,.1f} kWh",
                             [(theme.color(a), v) for a, v in bill["Gerçek (TL)"].items()])
         if user:
-            theme.side_user(user["name"], user.get("house"))
+            theme.side_user(user["name"], house_name(user.get("house")))
             if st.button("Çıkış yap", key="sb_logout", icon=":material/logout:", width="stretch"):
                 auth.logout()
                 st.rerun()
@@ -130,7 +189,8 @@ def one_model(models, key: str) -> str:
     """Tek modelli sayfalar için: birden fazla model seçiliyse sayfada küçük bir seçici çıkar."""
     if len(models) == 1:
         return models[0]
-    return st.segmented_control("Gösterilen model", models, default=models[0], key=key) or models[0]
+    default = next((m for m in PREFERRED if m in models), models[0])
+    return st.segmented_control("Gösterilen model", models, default=default, key=key) or default
 
 
 @st.cache_resource(max_entries=48)
@@ -184,7 +244,7 @@ def busiest_start(ts: pd.Series, power: pd.Series, win: pd.Timedelta):
 @st.cache_resource(max_entries=256)
 def _bill(model: str, house: int, price: float) -> pd.DataFrame:
     pred = load()[0]
-    dt = config.SAMPLE_PERIOD_S
+    dt = int(pred.attrs.get("dt", config.SAMPLE_PERIOD_S))
     sub = pred[(pred["model"] == model) & (pred["house"] == house)]
     rows = []
     from panel import theme
@@ -200,6 +260,7 @@ def _bill(model: str, house: int, price: float) -> pd.DataFrame:
             "Gerçek (TL)": metrics.bill_tl(y, dt, price),
             "Tahmin (TL)": metrics.bill_tl(p, dt, price),
             "Hata (TL)": metrics.tl_error(y, p, dt, price),
+            "Gün": len(g) * dt / 86400,  # kayıtlı süre; boşluklar sayılmaz (aylık ölçek için)
         })
     return pd.DataFrame(rows).set_index("Cihaz") if rows else pd.DataFrame()
 
@@ -213,7 +274,7 @@ def bill_table(pred, model: str, house: int, price: float) -> pd.DataFrame:
 def _facts(house: int, model: str, appliance: str, price: float) -> dict:
     from panel import insights
     w = _wide(house, appliance, (model,))
-    return insights.usage_facts(w["timestamp"], w["m0"], appliance, price)
+    return insights.usage_facts(w["timestamp"], w["m0"], appliance, price, dt=dt())
 
 
 def usage_facts(house, model, appliance, price) -> dict:

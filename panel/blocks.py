@@ -48,7 +48,8 @@ def smooth_view(g: pd.DataFrame, models, smooth: str, max_points: int = 2500):
 
 def window_stats(g: pd.DataFrame, dev: str, models, price: float):
     """Pencere için gerçek ve her model için kWh, TL, MAE, F1."""
-    dt = config.SAMPLE_PERIOD_S
+    from panel import data
+    dt = data.dt()
     thr = config.ON_THRESHOLD_W.get(dev, config.DEFAULT_ON_THRESHOLD_W)
     y = g["Gerçek"].to_numpy()
     out = {"real": dict(kwh=metrics.energy_kwh(y, dt), tl=metrics.bill_tl(y, dt, price)), "models": {}}

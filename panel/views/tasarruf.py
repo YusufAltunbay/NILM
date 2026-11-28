@@ -8,17 +8,14 @@ from panel import charts, data, insights, savings, theme
 
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
-theme.page_header("Tasarruf senaryosu", chips=[f"Ev {house}", f"{price:.2f} TL/kWh"])
+theme.page_header("Tasarruf senaryosu", chips=[data.house_name(house), f"{price:.2f} TL/kWh"])
 model = data.one_model(models, "model_tasarruf")
 bill = data.bill_table(pred, model, house, price)
 if bill.empty:
     st.error("Bu ev için veri yok.")
     st.stop()
 
-first = bill.index[0]
-w = data.wide(pred, house, first, [model])
-days = savings.span_days(w["timestamp"])
-m = savings.monthly(bill, days)
+m = savings.monthly(bill)
 apps = list(bill.index)
 K = lambda a: f"ts_cut_{a}"  # noqa: E731
 for a in apps:

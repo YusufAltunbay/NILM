@@ -12,7 +12,7 @@ pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo, houses_only=config.UNSEEN_HOUSES)
 house_txt = ", ".join(str(h) for h in config.UNSEEN_HOUSES)
 
-theme.page_header("Görülmeyen ev", f"Model ev {house_txt} verisini eğitimde hiç görmedi.", chips=[f"Ev {house}"])
+theme.page_header("Görülmeyen ev", f"Model ev {house_txt} verisini eğitimde hiç görmedi.", chips=[data.house_name(house)])
 model = data.one_model(models, "model_unseen")
 
 r = res[res["kind"] == "unseen"]

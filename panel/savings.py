@@ -41,9 +41,13 @@ def span_days(timestamps: pd.Series) -> float:
     return max(1.0, (timestamps.max() - timestamps.min()).total_seconds() / 86400)
 
 
-def monthly(bill: pd.DataFrame, days: float) -> pd.DataFrame:
-    """Veri penceresindeki tutarları 30 günlük aya ölçekler. bill: data.bill_table çıktısı."""
-    k = 30.0 / days
+def monthly(bill: pd.DataFrame, days: float | None = None) -> pd.DataFrame:
+    """Tutarları 30 günlük aya ölçekler. bill: data.bill_table çıktısı; 'Gün' sütunu varsa her cihaz
+    kendi kayıtlı süresine göre ölçeklenir (cihazların kayıt süreleri farklı olabilir)."""
+    if "Gün" in bill.columns:
+        k = 30.0 / bill["Gün"].clip(lower=1.0)
+    else:
+        k = 30.0 / (days or 30.0)
     return pd.DataFrame({"kWh": bill["Tahmin (kWh)"] * k, "TL": bill["Tahmin (TL)"] * k})
 
 

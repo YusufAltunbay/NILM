@@ -22,6 +22,8 @@ def _conn(db=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(path)
     c.execute("CREATE TABLE IF NOT EXISTS users(username TEXT PRIMARY KEY, salt TEXT NOT NULL, pw TEXT NOT NULL, house INTEGER NOT NULL)")
+    if "bill" not in [r[1] for r in c.execute("PRAGMA table_info(users)")]:  # eski veritabanı: sütunu ekle
+        c.execute("ALTER TABLE users ADD COLUMN bill REAL")
     return c
 
 
@@ -29,7 +31,7 @@ def _hash(password: str, salt: str) -> str:
     return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), ITER).hex()
 
 
-def create_user(username: str, password: str, house: int, db=None):
+def create_user(username: str, password: str, house: int, db=None, bill: float | None = None):
     """-> hata metni ya da None (başarılı)."""
     username = username.strip().lower()
     if not _NAME.match(username):
@@ -39,7 +41,8 @@ def create_user(username: str, password: str, house: int, db=None):
     salt = secrets.token_hex(16)
     try:
         with _conn(db) as c:
-            c.execute("INSERT INTO users VALUES (?,?,?,?)", (username, salt, _hash(password, salt), int(house)))
+            c.execute("INSERT INTO users(username, salt, pw, house, bill) VALUES (?,?,?,?,?)",
+                      (username, salt, _hash(password, salt), int(house), float(bill) if bill else None))
     except sqlite3.IntegrityError:
         return "Bu kullanıcı adı alınmış."
     return None
@@ -48,13 +51,19 @@ def create_user(username: str, password: str, house: int, db=None):
 def verify(username: str, password: str, db=None):
     """-> {'name', 'house'} ya da None."""
     with _conn(db) as c:
-        row = c.execute("SELECT salt, pw, house FROM users WHERE username=?", (username.strip().lower(),)).fetchone()
+        row = c.execute("SELECT salt, pw, house, bill FROM users WHERE username=?", (username.strip().lower(),)).fetchone()
     salt = row[0] if row else "00" * 16  # kullanıcı yokken de aynı süreyi harca
     ok = hmac.compare_digest(_hash(password, salt), row[1] if row else "")
     if not (row and ok):
         time.sleep(0.4)
         return None
-    return {"name": username.strip().lower(), "house": int(row[2])}
+    return {"name": username.strip().lower(), "house": int(row[2]), "bill": row[3]}
+
+
+def set_bill(username: str, bill: float | None, db=None):
+    """Kullanıcının aylık faturasını kaydeder (0 ya da None: girilmemiş)."""
+    with _conn(db) as c:
+        c.execute("UPDATE users SET bill=? WHERE username=?", (float(bill) if bill else None, username.strip().lower()))
 
 
 def current():
@@ -95,12 +104,14 @@ def login_page():
                 p = st.text_input("Parola", type="password", key="reg_p")
                 p2 = st.text_input("Parola (tekrar)", type="password")
                 h = st.selectbox("Evin", houses, format_func=data.house_name)
+                b = st.number_input("Aylık elektrik faturan (TL, isteğe bağlı)", 0.0, 100000.0, 0.0, 50.0,
+                                    help="Tasarruf hesapları senin faturana göre ölçeklenir. Sonra da değiştirebilirsin.")
                 if st.form_submit_button("Hesap oluştur", type="primary", width="stretch"):
-                    err = "Parolalar aynı değil." if p != p2 else create_user(u, p, h)
+                    err = "Parolalar aynı değil." if p != p2 else create_user(u, p, h, bill=b)
                     if err:
                         st.error(err)
                     else:
-                        st.session_state["user"] = {"name": u.strip().lower(), "house": int(h)}
+                        st.session_state["user"] = {"name": u.strip().lower(), "house": int(h), "bill": b or None}
                         st.rerun()
         if st.button("Misafir olarak devam et (tüm evler)", width="stretch"):
             st.session_state["user"] = {"name": "Misafir", "house": None}

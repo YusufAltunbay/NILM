@@ -265,6 +265,19 @@ def _bill(model: str, house: int, price: float) -> pd.DataFrame:
     return pd.DataFrame(rows).set_index("Cihaz") if rows else pd.DataFrame()
 
 
+@st.cache_resource(max_entries=16)
+def _house_month(house: int) -> float:
+    pred = load()[0]
+    sub = pred[pred["house"] == house]
+    agg = sub.groupby("timestamp", observed=True)["aggregate_w"].first()  # sayaç her cihaz dosyasında aynı
+    return float(agg.mean()) * 24 * 30 / 1000 if len(agg) else 0.0
+
+
+def house_month_kwh(house) -> float:
+    """Evin sayaçtan ölçülen ortalama aylık toplam tüketimi (kWh, tüm cihazlar). Önbellekli."""
+    return _house_month(int(house))
+
+
 def bill_table(pred, model: str, house: int, price: float) -> pd.DataFrame:
     """Seçili model ve ev için cihaz bazlı kWh ve TL tablosu. Önbellekli."""
     return _bill(str(model), int(house), round(float(price), 6))

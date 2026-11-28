@@ -51,6 +51,17 @@ def monthly(bill: pd.DataFrame, days: float | None = None) -> pd.DataFrame:
     return pd.DataFrame({"kWh": bill["Tahmin (kWh)"] * k, "TL": bill["Tahmin (TL)"] * k})
 
 
+def fit_to_bill(m: pd.DataFrame, house_tl: float, user_bill: float, price: float):
+    """Kullanıcının kendi faturasına ölçekler. Her cihazın payı örnek evin toplam tüketimindeki payından
+    alınır (m['TL'] / house_tl); payların toplamı en fazla %95 sayılır. -> (ölçeklenmiş m, 'diğer' TL)."""
+    share = m["TL"] / max(house_tl, 1e-9)
+    if share.sum() > 0.95:
+        share = share * 0.95 / share.sum()
+    tl = share * user_bill
+    out = pd.DataFrame({"kWh": tl / max(price, 1e-9), "TL": tl})
+    return out, max(0.0, user_bill - float(tl.sum()))
+
+
 def scenario(m: pd.DataFrame, cuts: dict) -> pd.DataFrame:
     """cuts: {cihaz: azaltma %}. -> Sütunlar: TL, Yeni TL, Tasarruf TL, Tasarruf kWh."""
     r = pd.Series({a: cuts.get(a, 0) / 100 for a in m.index})
@@ -60,10 +71,10 @@ def scenario(m: pd.DataFrame, cuts: dict) -> pd.DataFrame:
     return out
 
 
-def plan_for_target(m: pd.DataFrame, target_pct: float):
+def plan_for_target(m: pd.DataFrame, target_pct: float, other: float = 0.0):
     """Faturayı target_pct kadar düşürmek için plan. Her cihaz kendi gerçekçi tavanını (TIPS üst sınırı) aşmaz;
     kazancı en yüksek cihazdan başlanır. -> (plan {cihaz: %}, hedef tutuyor mu, toplam potansiyel TL)."""
-    need = m["TL"].sum() * target_pct / 100
+    need = (m["TL"].sum() + other) * target_pct / 100  # hedef tüm faturanın yüzdesi
     cap = {a: tip_range(a)[1] for a in m.index}
     potential = {a: m.loc[a, "TL"] * cap[a] / 100 for a in m.index}
     plan = {}
@@ -79,9 +90,9 @@ def plan_for_target(m: pd.DataFrame, target_pct: float):
     return plan, need <= 1e-6, sum(potential.values())
 
 
-def suggestions(m: pd.DataFrame, top: int = 3):
+def suggestions(m: pd.DataFrame, top: int = 3, other: float = 0.0):
     """Tasarruf POTANSİYELİ (TL, aralığın ortası) en yüksek cihazlar önce. Fatura payı değil, kazanç sıralar."""
-    total = m["TL"].sum() or 1.0
+    total = (m["TL"].sum() + other) or 1.0
     rows = []
     for a in m.index:
         text, lo, hi = TIPS.get(a, GENERIC)

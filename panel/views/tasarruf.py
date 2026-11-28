@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st
 
-from panel import charts, data, insights, savings, theme
+from panel import auth, charts, data, insights, savings, theme
 
 pred, res, demo = data.load()
 models, house, price = data.sidebar(pred, demo)
@@ -15,8 +15,37 @@ if bill.empty:
     st.error("Bu ev için veri yok.")
     st.stop()
 
+user = auth.current() or {}
+if "ts_bill" not in st.session_state:
+    st.session_state["ts_bill"] = float(user.get("bill") or 0.0)
+
+
+def save_bill():
+    b = st.session_state["ts_bill"]
+    if user.get("name") and user.get("house") is not None:  # misafir değilse kalıcı kaydet
+        auth.set_bill(user["name"], b)
+        st.session_state["user"]["bill"] = b or None
+
+
+house_tl = data.house_month_kwh(house) * price
+b1, b2 = st.columns([1, 2], vertical_alignment="bottom")
+with b1:
+    my_bill = st.number_input("Aylık elektrik faturan (TL)", 0.0, 100000.0, step=50.0, key="ts_bill", on_change=save_bill,
+                              help="Faturandaki toplam tutar. Boş (0) bırakırsan örnek evin tutarları kullanılır.")
 m = savings.monthly(bill)
-apps = list(bill.index)
+other = 0.0
+if my_bill > 0:
+    m, other = savings.fit_to_bill(m, house_tl, my_bill, price)
+    note = (f"Cihaz payları {data.house_name(house).split(' ·')[0]} ölçümlerinden tahmin edildi: bu {len(m)} cihaz "
+            f"faturanın yaklaşık **%{m['TL'].sum() / my_bill * 100:.0f}**'i, kalan **{other:,.0f} TL** diğer cihazlar "
+            "(aydınlatma, TV, ısıtma...).")
+else:
+    other = max(0.0, house_tl - float(m["TL"].sum()))
+    note = (f"Örnek evin aylık faturası yaklaşık **{house_tl:,.0f} TL**; bunun **{m['TL'].sum():,.0f} TL**'si bu "
+            f"{len(m)} cihaz. Kendi faturanı girersen hesaplar senin evine göre ölçeklenir.")
+with b2:
+    st.markdown(note)
+apps = list(m.index)
 K = lambda a: f"ts_cut_{a}"  # noqa: E731
 for a in apps:
     st.session_state.setdefault(K(a), 0)
@@ -55,17 +84,20 @@ def scenario_view():
         st.button("Sıfırla", on_click=set_all, args=(0,), icon=":material/restart_alt:")
     cuts = {a: st.session_state[K(a)] for a in apps}
     sc = savings.scenario(m, cuts)
-    saved, total = sc["Tasarruf TL"].sum(), sc["TL"].sum()
+    saved, total = sc["Tasarruf TL"].sum(), sc["TL"].sum() + other
     with right:
         theme.section("Önce ve sonra")
         theme.strip([
             dict(lab="Aylık tasarruf", num=f"{saved:,.2f}", unit="TL", sub=f"{sc['Tasarruf kWh'].sum():,.1f} kWh", tone="ok" if saved > 0 else "", small=True),
             dict(lab="Yıllık tasarruf", num=f"{saved * 12:,.0f}", unit="TL", sub=f"%{saved / total * 100 if total else 0:.1f} düşüş", small=True),
-            dict(lab="Yeni aylık fatura", num=f"{sc['Yeni TL'].sum():,.2f}", unit="TL", sub=f"Şimdi {total:,.2f} TL", small=True),
+            dict(lab="Yeni aylık fatura", num=f"{total - saved:,.2f}", unit="TL", sub=f"Şimdi {total:,.2f} TL", small=True),
         ])
-        before = m.rename(columns={"TL": "Tahmin (TL)"})
+        before = m[["TL"]].rename(columns={"TL": "Tahmin (TL)"})
         after = sc[["Yeni TL"]].rename(columns={"Yeni TL": "Tahmin (TL)"})
-        theme.legend(apps)
+        if other > 0:
+            before.loc["other"] = other
+            after.loc["other"] = other
+        theme.legend(list(before.index))
         st.altair_chart(charts.stacked_multi({"Şimdi": before, "Senaryo": after}), width="stretch")
     if saved > 0:
         theme.section("Cihaz cihaz tasarruf")
@@ -78,8 +110,8 @@ theme.section("Hedefe göre plan")
 t1, t2 = st.columns([1, 2], vertical_alignment="bottom")
 with t1:
     target = st.number_input("Faturayı yüzde kaç düşürmek istiyorsun?", 1, 50, 10, step=1, key="ts_target")
-plan, ok, potential = savings.plan_for_target(m, target)
-total_tl = m["TL"].sum()
+plan, ok, potential = savings.plan_for_target(m, target, other)
+total_tl = m["TL"].sum() + other
 with t2:
     if plan:
         txt = ", ".join(f"{theme.tr(a)} %{p}" for a, p in plan.items())
@@ -89,7 +121,7 @@ with t2:
         st.button("Planı senaryoya uygula", on_click=apply_plan, args=(plan,), icon=":material/check:")
 
 theme.section("Öncelikli öneriler", "Kazancı en yüksek olandan başlar. Azaltma oranları tahminidir.")
-sug = savings.suggestions(m)
+sug = savings.suggestions(m, other=other)
 if sug:
     best = sug[0]
     theme.callout(f"En büyük fırsat: <b>{theme.tr(best['appliance'])}</b>. Ayda tahminen <b>{best['low']:,.0f}-{best['high']:,.0f} TL</b> tasarruf mümkün.")

@@ -16,6 +16,7 @@ APPLIANCES = {
     "kettle": ("Su ısıtıcısı", "#FF9F1C"),
     "dish washer": ("Bulaşık makinesi", "#12B5A6"),
     "microwave": ("Mikrodalga", "#F0507A"),
+    "other": ("Diğer cihazlar", "#A8B3C4"),  # faturanın modellenmeyen kısmı (aydınlatma, TV, ısıtma...)
 }
 _FALLBACK = ["#64748B", "#A16207", "#0F766E", "#9D174D", "#4F46E5", "#BE185D", "#15803D", "#B45309"]
 # Model renkleri cihaz renklerinden (mavi, mor, turuncu, turkuaz, pembe) ayrışsın diye ayrı bir set.

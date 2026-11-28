@@ -63,3 +63,22 @@ def test_monthly_uses_per_device_days():
     bill = pd.DataFrame({"Tahmin (kWh)": [10.0, 10.0], "Tahmin (TL)": [30.0, 30.0], "Gün": [15.0, 60.0]}, index=["a", "b"])
     m = savings.monthly(bill)
     assert m.loc["a", "TL"] == 60.0 and m.loc["b", "TL"] == 15.0
+
+
+def test_fit_to_bill_scales_shares_and_leaves_other():
+    m = pd.DataFrame({"kWh": [10.0, 20.0], "TL": [30.0, 60.0]}, index=["a", "b"])
+    out, other = savings.fit_to_bill(m, house_tl=300.0, user_bill=1300.0, price=3.0)
+    assert abs(out.loc["a", "TL"] - 130.0) < 1e-9 and abs(out.loc["b", "TL"] - 260.0) < 1e-9
+    assert abs(other - 910.0) < 1e-9 and abs(out.loc["a", "kWh"] - 130.0 / 3) < 1e-9
+
+
+def test_fit_to_bill_caps_when_devices_exceed_meter():
+    m = pd.DataFrame({"kWh": [1.0], "TL": [500.0]}, index=["a"])
+    out, other = savings.fit_to_bill(m, house_tl=300.0, user_bill=1000.0, price=3.0)
+    assert abs(out["TL"].sum() - 950.0) < 1e-9 and abs(other - 50.0) < 1e-9
+
+
+def test_target_is_share_of_whole_bill():
+    m = pd.DataFrame({"kWh": [100.0], "TL": [100.0]}, index=["kettle"])
+    plan, ok, _ = savings.plan_for_target(m, 10, other=900.0)   # 1000 TL'nin %10'u = 100 TL, kettle tavanı %25
+    assert not ok

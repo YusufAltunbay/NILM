@@ -1,0 +1,362 @@
+# NILM Projesi — Proje Belgesi
+
+> Tek bir sayaçtan ölçülen **toplam elektrik tüketimini** cihazlara ayırarak (Non-Intrusive Load Monitoring, NILM) her cihazın ne kadar enerji harcadığını ve faturaya ne kadar yansıdığını tahmin etmek.
+
+Son güncelleme: 24 Kasım 2026 · Depo: https://github.com/YusufAltunbay/NILM (gizli)
+
+---
+
+## 1. Amaç
+
+- Evin toplam güç sinyalinden (W) seçilen cihazların güç tüketimini tahmin etmek.
+- Klasik bir temel model, **seq2point** (CNN) ve **Transformer (BERT4NILM)** modellerini aynı koşullarda karşılaştırmak.
+- Hataları yalnızca teknik metriklerle değil, **TL cinsinden fatura hatası** olarak da göstermek.
+- Modellerin daha önce hiç görmediği bir evde ne kadar iyi çalıştığını (genelleme) ölçmek.
+- Sonuçları cihaz bazlı tüketim ve tahmini fatura gösteren bir **web panelinde** sunmak.
+
+## 2. Kapsam
+
+| Kapsamda | Kapsam dışı |
+|---|---|
+| Açık veri seti: **UK-DALE** | Kendi evimizde ölçüm (akıllı priz, enerji ölçer) — zaman yetmediği için çıkarıldı |
+| 4–5 cihaz | Gerçek zamanlı canlı ölçüm |
+| 3 model ailesi (temel, seq2point, Transformer) | Ticari ürünleşme |
+| Streamlit web paneli | Mobil uygulama |
+
+## 3. Ekip ve sorumluluklar
+
+| Kişi | Alan | Ana işler |
+|---|---|---|
+| **Yusuf** | Veri ve değerlendirme | UK-DALE indirme/doğrulama, temizleme, pencereleme, ev bazlı ayırma; değerlendirmeyi gerçek veriyle çalıştırma, sonuç tablosu otomasyonu, görülmeyen ev testi |
+| **Ersin** | Modeller | Ortam kurulumu, temel model, seq2point, BERT4NILM; hiperparametre denemeleri; tahmin çıktılarının ortak biçimde kaydı |
+| **Kamil** | Frontend (panel) | Streamlit paneli: cihaz bazlı tüketim (kWh/TL), gerçek ve tahmin zaman serisi, model karşılaştırma, görülmeyen ev sonuçları; canlı gösteri |
+
+Rapor: Yusuf → veri ve değerlendirme, Ersin → modeller, Kamil → panel ve sistem tasarımı; giriş ve sonuç birlikte.
+
+## 4. Veri seti: UK-DALE
+
+- **Kaynak:** UK Domestic Appliance-Level Electricity (Kelly & Knottenbelt, 2015). Resmi UKERC EDC bağlantısı artık çalışmadığı için NILMTK biçimindeki `ukdale.h5` dosyası [Zenodo 13917372](https://zenodo.org/records/13917372) kaydından indiriliyor (~3.35 GB, MD5 ile doğrulanır).
+- **Yapı:** `/building{n}/elec/meter{m}`; `meter1` evin toplam (ana) sayacı, diğerleri cihaz sayaçları. Cihaz–sayaç eşlemesi her binanın `metadata` özniteliğinde.
+- **Biçim:** dosya pandas 0.15 ile yazılmış; güncel `pandas.HDFStore` açamadığı için okuyucu tabloları doğrudan PyTables ile okur. İndirilen dosya MD5 ile doğrulandı (3.345 GB).
+- Ham veri `data/raw/`, işlenmiş veri `data/processed/` altında durur; ikisi de git'e girmez.
+
+### Evler ve cihazlar (doğrulandı)
+
+| Ev | Tarih aralığı | Buzdolabı | Çamaşır makinesi | Su ısıtıcısı | Bulaşık makinesi | Mikrodalga |
+|---|---|---|---|---|---|---|
+| 1 | 2012-11-09 → 2015-01-05 (786 gün) | ✅ (fridge freezer) | ✅ (washer dryer) | ✅ | ✅ | ✅ |
+| 2 | 2013-02-17 → 2013-10-10 (234 gün) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 3 | 2013-02-27 → 2013-04-08 (39 gün) | – | – | ✅ | – | – |
+| 4 | 2013-03-09 → 2013-10-01 (205 gün) | – | ⚠️ | ✅ | – | ⚠️ |
+| 5 | 2014-06-29 → 2014-11-13 (137 gün) | ✅ (fridge freezer) | ✅ (washer dryer) | ✅ | ✅ | ✅ |
+
+- Aynı cihazın farklı adları `config.APPLIANCE_ALIASES` ile birleştirilir (`fridge freezer` → buzdolabı, `washer dryer` → çamaşır makinesi).
+- ⚠️ Ev 4'te çamaşır makinesi ve mikrodalga **aynı sayaçta**; hangisinin çektiği ayrılamadığı için ikisi de bu evde kullanılmaz.
+- Sonuç: su ısıtıcısı dışındaki dört cihaz için eğitim fiilen **yalnızca ev 1** ile yapılır (en uzun kayıt). Seçilen 5 cihaz literatürdeki standart UK-DALE kurulumuyla aynı; liste bu hâliyle kalabilir.
+
+### Cihaz seçimi gerekçesi (`scripts/cihaz_siralama.py`)
+
+UK-DALE'de 62 cihaz tipi var; hepsinin evin toplam enerjisindeki payı hesaplandı (ev 1, 2, 5; seyrek kayıt alan sayaçlarda kayıt olmayan anlar "kapalı" sayıldı). Eğitim, doğrulama ve test evlerinin **üçünde de** ölçülen ve sayacı başka cihazla paylaşılmayan cihazlar:
+
+| Cihaz | Ev 1 | Ev 2 | Ev 5 | Not |
+|---|---|---|---|---|
+| Buzdolabı (+ buzdolabı-dondurucu) | 11.2 | 14.9 | 5.7 | |
+| Bulaşık makinesi | 4.3 | 14.2 | 2.4 | |
+| Çamaşır makinesi (+ çamaşır-kurutma) | 7.3 | 3.8 | 5.8 | |
+| Su ısıtıcısı | 3.6 | 9.4 | 1.8 | Ev 1'de sayaç sandviç makinesiyle ortak |
+| Bilgisayar monitörü | 1.3 | 6.7 | 1.1 | Düşük güç, bazı evlerde seyrek kayıt |
+| Mikrodalga | 2.1 | 2.1 | 0.1 | Ev 5 ham sayaçta %6.6 görünür; sabit 50 W ofset (Bölüm 7) |
+
+Değerler cihaz enerjisinin evin toplam enerjisine oranıdır (%). Seçilen 5 cihaz ev 1'de %28, ev 2'de %44, ev 5'te %16 pay kapsar; kalan "diğer"dir ve panelde ayrı bir kalem olarak gösterilmelidir. Aydınlatma yalnızca ev 1'de ayrı ölçülür (15 sayaç, tüm kayıtta %13.8, yaz aylarında %5.4); ev 4'ün "lamba" sayacı televizyon ve DVD ile ortaktır, bu yüzden aydınlatma görülmeyen evde test edilemez. Evlerin ikisinde birden bulunan diğer cihazlar (televizyon, masaüstü bilgisayar, dizüstü) test evi eksik olduğu için aynı ayrımla değerlendirilemez.
+
+### Ev ayrımı
+
+| Küme | Evler | Amaç |
+|---|---|---|
+| Eğitim | 1, 3, 4 | Model eğitimi, normalizasyon istatistikleri |
+| Doğrulama | 5 | Hiperparametre seçimi, erken durdurma |
+| Görülmeyen ev (test) | 2 | Genelleme ölçümü; eğitimde hiç kullanılmaz |
+
+Ayrım ev bazlıdır: aynı evin verisi iki kümede birden bulunmaz, böylece zaman bazlı ayırmadaki sızıntı oluşmaz. Ev 3 ve 4 yalnızca su ısıtıcısı için eğitime katkı verir.
+
+## 5. Ortak sözleşmeler
+
+Herkesin kodu bu üç sözleşmeye uyar; böylece veri, model ve değerlendirme birbirinden bağımsız geliştirilebilir.
+
+### 5.1 Veri biçimi — `nilm/data/schema.py`
+
+| Sütun | Tür | Açıklama |
+|---|---|---|
+| `timestamp` | datetime (UTC) | Örnek zamanı (6 sn aralık) |
+| `house` | int | UK-DALE ev numarası |
+| `appliance` | str | Cihaz adı (UK-DALE etiketi) |
+| `aggregate_w` | float | Evin toplam gücü (W) |
+| `appliance_w` | float | Cihazın gerçek gücü (W) — "doğru cevap" |
+
+`validate(df)` sütunları, türleri ve negatif değerleri kontrol eder.
+
+### 5.2 Model arayüzü — `nilm/models/base.py`
+
+```python
+class NILMModel(ABC):
+    name: str
+    def fit(self, train: pd.DataFrame) -> "NILMModel": ...      # ortak biçim, tek cihaz
+    def predict(self, aggregate: np.ndarray) -> np.ndarray: ...  # toplam W -> cihaz W, aynı uzunluk
+```
+
+Yeni model, `scripts/run_eval.py` içindeki `MODELS` sözlüğüne eklenince değerlendirmede ve panelde otomatik görünür.
+
+### 5.3 Sonuç tablosu — `results/results.csv`
+
+`model, dataset, appliance, mae, sae, f1, tl_error, predict_ms` — her deney bir satır. `nilm/eval/results.py` yazar, `nilm/eval/report.py` özet ve grafik üretir, panel okur.
+
+`results/results.csv` ve `results/experiments.csv` (seq2point deney günlüğü) git'te takip edilir; `results/` altındaki diğer her şey (`predictions/`, `figures/`) git dışıdır. **Kural:** `results.csv` yalnızca tam ve resmi bir çalıştırmadan sonra (tüm cihazlar, `--fresh`) commit edilir; deneme veya `--synthetic` çalıştırmalarının satırları commit'e girmemeli.
+
+### 5.4 Tahmin dosyaları — `nilm/eval/predictions.py`
+
+Panel gerçek ve tahmin zaman serisini göstereceği için her deneyin tahminleri de kaydedilir:
+`results/predictions/{model}__{cihaz}__house{n}.h5` (key `data`), sütunlar `timestamp, aggregate_w, appliance_w, pred_w` (W). Satır sayısı test verisiyle aynıdır (`predict` aynı uzunlukta dönmek zorunda; pencere kenarlarını 0 ile doldur).
+Panel için `predictions.load_all(models=…, appliances=…, houses=…)` bu dosyaları sütunları `timestamp, house, appliance, aggregate_w, appliance_w, predicted_w, model` olan uzun bir tabloda birleştirir (`to_frame` aynı biçimi tek bir test verisi için üretir). Süzgeç verilirse yalnızca istenen dosyalar okunur: tek ev ve cihaz 1.7 M satır için ~1.6 sn, bir modelin tamamı (17.7 M satır) ~3 sn ve ~1 GB bellek.
+Üretmek için: `python -m scripts.run_eval --data data/processed --save-preds`. Kaydetme `evaluate(..., save_preds=True)` ile yapılır, model tarafında ek bir şey gerekmez.
+
+## 6. Sistem mimarisi
+
+```
+ukdale.h5 ──► ukdale.load() ──► prep.clean() ──► data/processed/{cihaz}.h5
+                                                      │
+                     ┌────────────────────────────────┤
+                     ▼                                ▼
+          prep.split_by_house()              sample_{cihaz}.csv (panel, hızlı deneme)
+                     │
+   Normalizer.fit(eğitim) ─► prep.windows() ─► model.fit()
+                                                      │
+          görülmeyen ev ─► model.predict() ─► evaluate() ─► results/results.csv
+                                                                  │
+                                       nilm/eval/report.py ◄──────┤
+                                       panel/app.py        ◄──────┘
+```
+
+## 7. Veri hazırlama — `nilm/data/prep.py`
+
+1. **Yeniden örnekleme:** toplam ve cihaz sinyalleri 6 sn'lik ortalamalara indirilir (`ukdale.load`).
+2. **Temizleme (`clean`):** negatif ve 20 kW üstü değerler geçersiz sayılır; 3 dakikaya (30 adım) kadar boşluklar ileri doldurulur, daha uzunları atılır; cihaz gücü toplamı aşamaz (kırpılır). Ardından:
+   - **Üst sınır (`config.MAX_POWER_W`):** buzdolabı 300 W, çamaşır/bulaşık makinesi 2500 W, su ısıtıcısı 3100 W, mikrodalga 3000 W. Buzdolabında kompresör kalkışında tek örneklik 1–2 kW tepeler var (günde 2–3 kez, ardından ~100 W); gerçek ama bilgi taşımıyor ve ölçeklemeyi bozuyordu.
+   - **Bekleme eşiği (`config.STANDBY_W`):** mikrodalgada 100 W altı 0 sayılır. Ev 5 mikrodalga sayacı Temmuz 2014'ten itibaren zamanın %90'ında sabit 50 W gösteriyor (gerçek kullanım günde ~0.4 kez, ~1.3 kW).
+3. **Ev bazlı ayırma (`split_by_house`).**
+4. **Normalizasyon (`Normalizer`):** toplam güç z-skor ile, cihaz gücü eğitimdeki maksimuma bölünerek ölçeklenir. İstatistikler **yalnızca eğitim verisinden** öğrenilir; `y_inverse` tahmini Watt'a geri çevirir.
+5. **Pencereleme (`windows`, `WindowDataset`):** küçük veride `prep.windows`, gerçek eğitimde bellek dostu `nilm/data/dataset.py` (`make_datasets`) kullanılır; ikisi birebir aynı pencereleri üretir.
+   Pencere ayrıntısı: seq2point için 599 adımlık (~1 saat) pencere; hedef pencerenin ortasındaki cihaz gücü. Pencereler ev/cihaz sınırlarını ve atılan zaman boşluklarını aşmaz.
+
+## 8. Modeller
+
+| Model | Fikir | Durum |
+|---|---|---|
+| `MeanModel` | Eğitimdeki ortalama cihaz gücünü tahmin eder; alt sınır referansı | Hazır |
+| `ThresholdModel` | Klasik temel model: toplamdaki sıçrama ve eşleşen düşüşü açık/kapalı sayar, açıkken öğrenilen tipik gücü tahmin eder | Hazır (5 cihaz) |
+| **seq2point** | Toplam güç penceresinden (CNN) pencere ortasındaki cihaz gücünü tahmin eder; cihaz başına ayrı ağ | Hazır (5 cihaz, ilk tur; sonuçlar §15.1) |
+| **BERT4NILM** | Transformer tabanlı seq2seq model (küçük sürüm); doğruluk/hız dengesi not edilecek | Hazır (5 cihaz, ilk tur; sonuçlar §15.1) |
+
+Çerçeve: PyTorch. Hesaplama gücü yetmezse daha küçük model ya da ücretsiz bulut (Colab/Kaggle) kullanılır.
+
+## 9. Değerlendirme — `nilm/eval/`
+
+| Metrik | Tanım | Yorum |
+|---|---|---|
+| **MAE** | Ortalama mutlak hata (W) | Anlık güç tahmininin doğruluğu |
+| **SAE** | \|Σtahmin − Σgerçek\| / Σgerçek | Toplam enerjideki sapma |
+| **F1** | Açık/kapalı durum sınıflandırması | Cihaz bazlı eşik: `config.ON_THRESHOLD_W` (buzdolabı 50 W, su ısıtıcısı 2000 W, …) |
+| **TL hatası** | Tahmin ve gerçek kWh farkı × birim fiyat | Kullanıcı için anlamlı hata ölçüsü |
+| **Tahmin süresi** | `predict` süresi (ms) | Pratik kullanım, gerçek zamanlılık |
+
+`scripts/run_eval.py` her model × cihaz × test evi için değerlendirme yapar; `tests/test_metrics.py` metriklerin birim testlerini içerir.
+
+## 10. Web paneli — `panel/app.py` (Streamlit)
+
+- Cihaz bazlı tüketim (kWh) ve tahmini fatura (TL)
+- Gerçek ve tahmin edilen güç zaman serisi
+- Model karşılaştırma tablosu ve grafikleri
+- Görülmeyen ev sonuçları
+- Veri: şimdilik sahte; gerçek veriden üretilen örnek CSV'ler hazır olunca bağlanacak
+
+## 11. Klasör yapısı
+
+```
+NILM/
+├── nilm/
+│   ├── config.py          # cihazlar, ev ayrımı, birim fiyat, eşikler
+│   ├── data/              # schema, UK-DALE okuyucu, prep
+│   ├── models/            # NILMModel arayüzü ve modeller
+│   └── eval/              # metrikler, değerlendirme, sonuç tablosu, rapor
+├── panel/app.py           # Streamlit paneli
+├── scripts/               # indirme, inceleme, işleme, değerlendirme, testler
+├── tests/                 # birim testleri
+├── data/raw, processed/   # git dışı
+├── results/               # results.csv ve experiments.csv git'te; predictions/ ve figures/ git dışı
+├── README.md
+└── PROJE.md
+```
+
+## 12. Kurulum ve çalıştırma
+
+```bash
+git clone https://github.com/YusufAltunbay/NILM.git
+cd NILM
+pip install -r requirements.txt
+
+# Veri
+python -m scripts.download_ukdale     # data/raw/ukdale.h5 (~3.35 GB, MD5 doğrulamalı)
+python -m scripts.inspect_ukdale      # ev, cihaz ve tarih aralıkları
+python -m scripts.prepare_ukdale      # data/processed/{cihaz}.h5 + sample_{cihaz}.csv
+
+# Testler
+python -m pytest -q
+python -m scripts.test_prep
+python -m scripts.smoke_test
+
+# Değerlendirme ve panel
+python -m scripts.run_eval --data data/processed/fridge.h5
+python -m nilm.eval.report
+streamlit run panel/app.py
+```
+
+## 13. Git iş akışı
+
+- `main` yalnızca PR ile güncellenir. PR'da resmi inceleme (reviewer) zorunlu değildir; değişiklik ekibe haber verilerek ve testler geçerek birleştirilir.
+- Dal adları: `yusuf/...`, `ersin/...`, `kamil/...`.
+- Büyük dosyalar (veri, `*.pt` model ağırlıkları) git'e girmez.
+- Ortak dosyalar (`nilm/config.py`, sözleşmeler) değişince ekibe haber verilir.
+
+## 14. Yol haritası (9 hafta)
+
+| Hafta | Aşama | Yusuf | Ersin | Kamil | Çıktı |
+|---|---|---|---|---|---|
+| 1 | Ortak kararlar | Depo, sözleşmeler, UK-DALE indirme ✅ | Ortam kurulumu | Değerlendirme ilk sürüm ✅ | Ortak iskelet |
+| 2–3 | Temel ve veri | Veri doğrulama, işleme, örnek CSV | Temel model | Panel iskeleti ✅ | İlk temel model sonucu |
+| 4–5 | Derin öğrenme | Değerlendirmeyi gerçek veriyle çalıştırma, sonuç otomasyonu | seq2point | Paneli gerçek sonuçlara bağlama | Temel ve seq2point tek tabloda |
+| 6–7 | Transformer ve genelleme | Görülmeyen ev (ev 2) testi | BERT4NILM | Karşılaştırma sayfası, fatura gösterimi | 3 model tek tabloda |
+| 8 | Birleştirme | Sonuçların yorumu, veri belgeleri | Model analizi | Panelin son hâli, canlı gösteri hazırlığı | Bitmiş sistem |
+| 9 | Rapor ve sunum | Veri ve değerlendirme bölümü | Modeller bölümü | Panel bölümü | Rapor, sunum, prova |
+
+**Zaman daralırsa öncelik:** temel model + seq2point + TL hatası + panel; Transformer ve görülmeyen ev testi en sona.
+
+## 15. Mevcut durum
+
+| İş | Durum |
+|---|---|
+| Depo, ortak sözleşmeler | ✅ `main` |
+| Değerlendirme, rapor, panel (PR #2) | ✅ `main`'e birleşti |
+| UK-DALE indirme | ✅ İndirildi, MD5 doğrulandı |
+| Veri hazırlama | ✅ Gerçek veriyle çalışıyor; tüm veri işleniyor |
+| Modeller | ✅ `mean`, `threshold`, `seq2point` ve `bert4nilm` 5 cihaz için hazır (sonuçlar §15.1) |
+| "Diğer" enerji dağılımı (`panel/allocation.py`) | ✅ `main`'de; panele bağlanacak |
+
+### 15.1 Model sonuçları (ilk tur, gerçek veri)
+
+Kaynak: `results/results.csv` (`python -m scripts.run_eval --data data/processed --models mean threshold seq2point bert4nilm --save-preds`; seq2point mikrodalga ve bulaşık makinesi cihaz bazlı ayarla, `--appliances microwave "dish washer" --replace`). Her hücre **mean / threshold / seq2point / bert4nilm** sırasıyla. Ev 2 hiç görülmeyen ev (hakem), ev 5 doğrulama evi (ayarlar buna bakılarak seçildi, bu yüzden biraz iyimser). TL hatası 3.24 TL/kWh ile, ilgili evin tüm kayıt süresi için.
+
+| Cihaz | Ev | MAE (W) | F1 | TL hatası |
+|---|---|---|---|---|
+| buzdolabı | ev 2 (görülmeyen) | 38.0 / 39.4 / 15.7 / 18.5 | 0.00 / 0.60 / 0.88 / 0.82 | 47 / 65 / 79 / 95 |
+| buzdolabı | ev 5 (doğrulama) | 50.6 / 44.9 / 26.6 / 31.5 | 0.00 / 0.50 / 0.83 / 0.50 | 14 / 68 / 40 / 170 |
+| çamaşır makinesi | ev 2 (görülmeyen) | 31.8 / 12.7 / 15.4 / 13.7 | 0.02 / 0.54 / 0.35 / 0.33 | 155 / 59 / 27 / 36 |
+| çamaşır makinesi | ev 5 (doğrulama) | 41.8 / 43.8 / 43.8 / 44.2 | 0.09 / 0.07 / 0.52 / 0.42 | 139 / 382 / 217 / 276 |
+| su ısıtıcısı | ev 2 (görülmeyen) | 40.8 / 11.0 / 6.8 / 28.3 | 0.00 / 0.91 / 0.98 / 0.85 | 158 / 46 / 9 / 155 |
+| su ısıtıcısı | ev 5 (doğrulama) | 22.6 / 37.0 / 12.1 / 25.9 | 0.00 / 0.29 / 0.85 / 0.76 | 14 / 145 / 27 / 105 |
+| bulaşık makinesi | ev 2 (görülmeyen) | 55.4 / 65.7 / 29.6 / 40.4 | 0.06 / 0.07 / 0.29 / 0.11 | 240 / 135 / 106 / 167 |
+| bulaşık makinesi | ev 5 (doğrulama) | 32.5 / 55.9 / 22.6 / 31.1 | 0.05 / 0.08 / 0.27 / 0.07 | 8 / 252 / 82 / 29 |
+| mikrodalga | ev 2 (görülmeyen) | 13.3 / 6.6 / 10.8 / 10.6 | 0.00 / 0.54 / 0.46 / 0.42 | 10 / 22 / 68 / 30 |
+| mikrodalga | ev 5 (doğrulama) | 8.0 / 29.1 / 24.8 / 15.5 | 0.00 / 0.03 / 0.03 / 0.03 | 66 / 290 / 245 / 147 |
+
+- **F1'de** seq2point 10 satırın 7'sinde en iyi; threshold 2'sinde (çamaşır makinesi ve mikrodalga ev 2), bert4nilm 1'inde (mikrodalga ev 5, fark çok küçük: 0.03 / 0.03 / 0.02). **MAE'de** seq2point 6 satırda, threshold ve mean ikişer satırda en iyi; seq2point 10 satırın 8'inde mean'den iyi (istisna: çamaşır makinesi ve mikrodalga ev 5).
+- **Seq2point ile bert4nilm:** bert4nilm yalnızca mikrodalgada (MAE ve TL, iki evde de; ev 2'de MAE farkı çok küçük: 10.6 / 10.8) ve çamaşır makinesi ev 2'de MAE'de, bulaşık makinesi ev 5'te TL'de seq2point'ten iyi. Su ısıtıcısında çok geride; bulaşık makinesinde F1'i çok düşük (0.07–0.11). Olası neden (doğrulanmadı): girdinin 2 kat alt örneklenmesi 17 adımlık kısa olayları bulanıklaştırıyor; uzun döngüler için dikkat mekanizmasının avantajı bu ayarda görülmedi.
+- **TL hatasında** (tüm kayıt süresi) en iyi model 10 satırın 7'sinde mean, 3'ünde seq2point (çamaşır, su ısıtıcısı ve bulaşık makinesi, ev 2). Ev 5'te mean beş cihazın hepsinde önde. Seyrek açılan cihazlarda küçük sabit tahmin düşük enerji hatası verirken, modellerin yanlış alarmları (cihaz kapalıyken küçük güç tahmini) enerjiyi şişiriyor gibi görünüyor; bu açıklama doğrulanmadı. Kullanıcının gördüğü ölçek günlük/haftalık olduğu için ayrıca §15.2'ye bakın.
+- **Cihaz bazlı ayar** (`nilm/models/params.py`): seq2point mikrodalga ve bulaşık makinesinde `hidden=256` (küçük Dense başlık, yanlış alarmı azaltıyor), diğer cihazlarda `hidden=1024`. Mikrodalga ve bulaşıkta 3 seed'de de ev 5 MAE'si `hidden=1024`'ten düşük çıktı (mikrodalga 30.6 → 25.5 ± 1.2; bulaşık 24.6 → 22.7 ± 1.2, F1 0.18 → 0.27); çamaşır makinesinde `hidden=256` F1'i düşürdüğü için uygulanmadı. `hidden=1024` için seed çalıştırılmadı.
+- **Cihaz durumu:** su ısıtıcısında seq2point F1'de en iyisi (ev 2: 0.98, ev 5: 0.85), ama MAE ve TL hatası seed'e çok duyarlı olabilir (seed turu sonuçları aşağıda). Mikrodalga ev 5'te hâlâ başarısız (mean MAE 8.0'a karşı 24.8; muhtemelen 1–2 kW'lık başka yükleri mikrodalga sanıyor, doğrulanmadı). Buzdolabı, çamaşır ve bulaşık makinesi ve mikrodalga yalnızca ev 1'den eğitilir (ev 3 ve 4'te yok).
+- **Boyut ve hız** (ortanca tahmin süresi, 1,7–2 milyon örnek, GPU): mean 8 ms, threshold 31 ms, **bert4nilm 2.6 sn** (709 bin parametre), **seq2point 62 sn** (30.7 milyon parametre; `hidden=256` ile 7.7 milyon). Bert4nilm yaklaşık 24 kat hızlı ve çok daha küçük, ama doğrulukta çoğu cihazda geride. Dikkat: seq2point mikrodalga ve bulaşık süreleri (70–77 sn) küçük ağa rağmen diğer cihazlardan uzun; büyük olasılıkla GPU'nun güç sınırına takıldığı bir sırada ölçüldü (doğrulanmadı), bu iki süreye temkinli bakılmalı.
+- **Seed:** resmi tablo seed 0; her (model, cihaz) için 3 seed (0, 1, 2) çalıştırıldı, ortalama ± std (örnek std, ddof=1) `python -m scripts.seed_ozeti` ile üretilir (buzdolabı seq2point'in seed 1–2'si eski örnekleme düzeniyle koşuldu). Ev 2, 3 seed:
+
+| Cihaz | Model | MAE (W) | F1 | TL hatası |
+|---|---|---|---|---|
+| buzdolabı | seq2point | 16.8 ± 1.0 | 0.86 ± 0.02 | 79 |
+| buzdolabı | bert4nilm | 21.9 ± 3.6 | 0.70 ± 0.19 | 136 ± 46 |
+| çamaşır mak. | seq2point | 15.5 ± 0.4 | 0.34 ± 0.01 | 59 ± 32 |
+| çamaşır mak. | bert4nilm | 14.7 ± 3.7 | 0.31 ± 0.04 | 56 ± 67 |
+| su ısıtıcısı | seq2point | 11.5 ± 8.7 | 0.98 ± 0.00 | 68 ± 104 |
+| su ısıtıcısı | bert4nilm | 17.5 ± 9.5 | 0.74 ± 0.16 | 123 ± 34 |
+| bulaşık mak. | seq2point | 26.5 ± 2.7 | 0.31 ± 0.02 | 62 ± 44 |
+| bulaşık mak. | bert4nilm | 41.2 ± 6.5 | 0.09 ± 0.02 | 94 ± 66 |
+| mikrodalga | seq2point | 12.7 ± 1.7 | 0.46 ± 0.03 | 82 ± 14 |
+| mikrodalga | bert4nilm | 7.6 ± 2.9 | 0.58 ± 0.16 | 11 ± 16 |
+
+  Okuma: F1 çoğu cihazda kararlı (su ısıtıcısı seq2point 0.98 ± 0.00), ama **su ısıtıcısında MAE ve TL hatası seed'e çok duyarlı** (std ortalamaya yakın) ve TL hatasında std çoğu satırda büyük; tek seed'li TL sıralamaları bu yüzden temkinle okunmalı. Ev 5 değerleri `results/seed_ozeti.md` içinde (yerel çıktı). Bert4nilm ayarı (hidden 128, 3 katman, 4 baş, dropout 0.3) yalnızca buzdolabında ev 5'e bakılarak seçildi. Hiperparametre denemeleri `results/experiments.csv` içinde.
+- Seq2point cihaz başına ayrı ağdır (`NILMModel` arayüzü tek cihaz); 5 cihaz için 5 ağ eğitilir, bert4nilm de aynı şekilde.
+
+### 15.2 Günlük ve haftalık enerji hatası
+
+Kullanıcı panelde cihaz başına **günlük/haftalık kWh ve TL** görür, saniyelik güç değil. Bu bölüm, §15.1'deki aynı tahminlerin günlere ve haftalara toplanmasıyla hesaplanır (model eğitiminden bağımsız; `nilm/eval/energy.py`, tablolar `python -m scripts.enerji_hatasi` ile). Yalnızca eksiksiz dönemler (örneklerin ≥%90'ı var) kullanılır: ev 2'de 117 gün (su ısıtıcısı 146), ev 5'te 129 gün (su ısıtıcısı 69). Gerçek ve tahmin aynı satırlar üzerinden toplandığı için karşılaştırma adildir.
+
+**Günlük** TL hatası (gün başına |tahmin - gerçek| enerji × 3.24 TL, günlerin ortalaması; küçük = iyi; her hücre bir model)
+
+| Cihaz | Ev | mean | threshold | seq2point | bert4nilm |
+|---|---|---|---|---|---|
+| buzdolabı | 2 | **0.47** | 1.20 | 0.66 | 0.80 |
+| buzdolabı | 5 | **0.21** | 0.67 | 0.32 | 1.29 |
+| çamaşır mak. | 2 | 1.60 | 0.51 | 0.42 | **0.39** |
+| çamaşır mak. | 5 | 2.43 | 2.91 | **2.01** | 2.25 |
+| su ısıtıcısı | 2 | 1.14 | 0.50 | **0.12** | 1.05 |
+| su ısıtıcısı | 5 | 0.44 | 2.11 | **0.43** | 1.50 |
+| bulaşık mak. | 2 | 2.35 | 2.03 | **1.05** | 1.64 |
+| bulaşık mak. | 5 | 1.70 | 2.62 | **1.08** | 1.41 |
+| mikrodalga | 2 | **0.22** | 0.32 | 0.56 | 0.29 |
+| mikrodalga | 5 | **0.50** | 2.15 | 1.81 | 1.09 |
+
+En iyi model sayısı (günlük): {'seq2point': 5, 'mean': 4, 'bert4nilm': 1}
+
+**Haftalık** TL hatası (7 günlük blok başına, aynı biçimde)
+
+| Cihaz | Ev | mean | threshold | seq2point | bert4nilm |
+|---|---|---|---|---|---|
+| buzdolabı | 2 | **3.29** | 7.40 | 4.65 | 5.33 |
+| buzdolabı | 5 | **0.86** | 3.45 | 2.26 | 8.98 |
+| çamaşır mak. | 2 | 9.13 | 3.51 | **1.42** | 1.92 |
+| çamaşır mak. | 5 | **7.13** | 18.50 | 10.36 | 13.21 |
+| su ısıtıcısı | 2 | 6.61 | 2.16 | **0.52** | 7.39 |
+| su ısıtıcısı | 5 | **1.86** | 14.49 | 2.68 | 10.45 |
+| bulaşık mak. | 2 | 13.63 | 7.99 | **6.08** | 9.26 |
+| bulaşık mak. | 5 | **2.93** | 12.89 | 4.45 | 3.89 |
+| mikrodalga | 2 | **0.98** | 1.28 | 3.74 | 1.54 |
+| mikrodalga | 5 | **3.43** | 14.33 | 12.30 | 7.33 |
+
+En iyi model sayısı (haftalık): {'mean': 7, 'seq2point': 3}
+
+- **Günlük ölçekte** seq2point 5/10 satırda, mean 4/10, bert4nilm 1/10 satırda en iyi; §15.1'deki tüm-süre ölçütünde mean 7/10, seq2point 3/10 idi.
+- **Kullanımı değişken cihazlarda** (su ısıtıcısı, bulaşık ve çamaşır makinesi) seq2point ev 2'de günlük ölçekte mean'den belirgin iyi: su ısıtıcısı 0.12 / 1.14, bulaşık 1.05 / 2.35, çamaşır 0.42 / 1.60 TL/gün (seq2point / mean).
+- **Mean iki durumda önde:** buzdolabı (günlük enerjisi neredeyse sabit, ~1 kWh) ve mikrodalga (günlük 0.02–0.15 kWh, çok az kullanılıyor); sabit tahmin burada doğal olarak iyi.
+- **Dönem uzadıkça** (günlük → haftalık) mean'in payı artıyor (haftalıkta 7/10): olası neden, modellerin sistematik sapmalarının (yanlış alarm) birikmesine karşılık sabit ortalamanın uzun dönemde gerçek ortalamaya yaklaşması (doğrulanmadı).
+- Bu tablolar tek seed (seed 0); TL hatası seed'e duyarlı olduğu için yakın sıralamalar kesin değil (bkz. §15.1, seed).
+
+## 16. Açık kararlar
+
+- [x] Cihaz listesi — 5 cihaz tüm gerekli evlerde var (Bölüm 4)
+- [x] Ev ayrımı — eğitim 1 (+3, 4 su ısıtıcısı için), doğrulama 5, test 2
+- [x] ~~TL/kWh birim fiyatı~~ → 3.24 TL (Nisan 2026 mesken tarifesi, Kamil)
+- [ ] Cihaz bazlı açık/kapalı eşiklerinin doğrulanması
+- [x] Tahmin çıktı dosyalarının biçimi — Bölüm 5.4 (Ersin ve Kamil onaylayacak)
+
+## 17. Riskler ve yedek planlar
+
+| Risk | Önlem |
+|---|---|
+| Sayaç kaynaklı bozukluklar (ev 5 mikrodalga ofseti, buzdolabı kalkış tepeleri) | Cihaz bazlı üst sınır ve bekleme eşiği (Bölüm 7); yeni bir cihaz eklenirken dağılımı kontrol etmek |
+| Eğitim fiilen tek evden (ev 1) | Görülmeyen ev sonuçlarını bu sınırlamayla yorumlamak; gerekirse ev 5'i eğitime alıp doğrulamayı ev 1'in son aylarından yapmak |
+| Bazı cihazlar az evde var | Cihaz listesini veriye göre seçmek; görülmeyen ev testini cihaz bazında uyarlamak |
+| Hesaplama gücü yetersiz | Daha küçük pencere/model, alt örneklenmiş veri, Colab/Kaggle GPU |
+| Zaman darlığı | Bölüm 14'teki öncelik sırası |
+| Panel ile model çıktısı uyumsuzluğu | Çıktı biçimini erken sabitlemek (Bölüm 16) |
+
+## 18. Kaynaklar
+
+- J. Kelly, W. Knottenbelt, *The UK-DALE dataset, domestic appliance-level electricity demand and whole-house demand from five UK homes*, Scientific Data, 2015. doi:10.1038/sdata.2015.7
+- C. Zhang vd., *Sequence-to-point learning with neural networks for non-intrusive load monitoring*, AAAI 2018.
+- Z. Yue vd., *BERT4NILM: A Bidirectional Transformer Model for Non-Intrusive Load Monitoring*, NILM Workshop 2020.
+- NILMTK: https://github.com/nilmtk/nilmtk
